@@ -16,7 +16,6 @@ const PAGES = [
   { id: 'goals',        label: 'Goals',         icon: '🎯' },
   { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
   { id: 'ai',           label: 'AI Assistant',  icon: '✨' },
-  { id: 'profile',      label: 'Profile',       icon: '👤' },
 ]
 
 function NavItem({ page, active, onClick }) {
@@ -101,6 +100,17 @@ export default function App() {
               {p.label}
             </a>
           ))}
+          <a
+            href="#"
+            className={`mobile-nav-item ${page === 'profile' ? 'active' : ''}`}
+            onClick={e => { e.preventDefault(); setPage('profile') }}
+          >
+            {user?.picture
+              ? <img src={user.picture} alt="" style={{ width: 22, height: 22, borderRadius: '50%' }} />
+              : <span style={{ fontSize: 20 }}>👤</span>
+            }
+            Profile
+          </a>
         </div>
       </nav>
     </div>
