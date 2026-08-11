@@ -148,6 +148,44 @@ export async function suggestCategory(description) {
   return text.trim().split('\n')[0].trim()
 }
 
+// ── Detect subscriptions from transaction history ────────────────────────────
+export async function detectSubscriptions(transactions) {
+  const today = new Date().toISOString().slice(0, 10)
+  const lines = transactions
+    .map(t => `${t.date} | ${t.description} | R${parseFloat(t.amount).toFixed(2)}`)
+    .join('\n')
+
+  const parts = [{
+    text: `Analyze these bank transactions and identify recurring subscription or contract payments.
+
+Look for: streaming (Netflix, Showmax, DSTV Now), music (Spotify, Apple Music), software (Microsoft 365, Adobe, Dropbox),
+gaming, gym/fitness, news, cloud storage, insurance premiums, cell phone contracts, internet/fibre, and similar recurring services.
+
+Transactions:
+${lines}
+
+Return ONLY a valid JSON array. Empty array [] if nothing found. No markdown, no explanation.
+[
+  {
+    "name": "Netflix",
+    "amount": 199.00,
+    "billing_cycle": "monthly",
+    "category": "Streaming",
+    "next_billing_date": "${today}"
+  }
+]
+
+Rules:
+- Only include clear recurring services — exclude groceries, fuel, once-off purchases
+- billing_cycle: "monthly", "yearly", or "weekly"
+- category: one of: Streaming, Music, Software, Gaming, Fitness, News, Cloud, Other
+- amount: the value from the most recent occurrence
+- next_billing_date: estimate based on the most recent date seen`,
+  }]
+  const text = await generate(parts)
+  return parseJSON(text)
+}
+
 // ── Bulk categorize (for CSV import) ─────────────────────────────────────────
 export async function bulkCategorize(descriptions) {
   const numbered = descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n')

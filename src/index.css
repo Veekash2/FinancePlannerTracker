@@ -729,3 +729,29 @@ input, select, textarea { font: inherit; color: inherit; }
 .dash-acc-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .dash-acc-type { font-size: 11px; color: var(--muted); }
 .dash-acc-bal { font-size: 14px; font-weight: 700; white-space: nowrap; }
+
+/* ── Editable income stat card ───────────────────────────────────────────── */
+.stat-card--editable {
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.stat-card--editable:hover { border-color: var(--accent); }
+
+.income-edit-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.income-edit-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--green);
+}

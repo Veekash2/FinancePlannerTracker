@@ -27,6 +27,17 @@ export function deleteAccount(email, id) {
   save(email, getAccounts(email).filter(a => a.id !== id))
 }
 
+// Per-user manual income override (stored separately from accounts)
+const incomeKey = email => `fp_income_${email}`
+export function getManualIncome(email) {
+  const v = parseFloat(localStorage.getItem(incomeKey(email)))
+  return isNaN(v) ? 0 : v
+}
+export function saveManualIncome(email, amount) {
+  if (!amount || amount <= 0) localStorage.removeItem(incomeKey(email))
+  else localStorage.setItem(incomeKey(email), String(amount))
+}
+
 export const ACCOUNT_TYPES = {
   cheque:     { label: 'Cheque',      icon: '🏦', color: '#6366f1' },
   savings:    { label: 'Savings',     icon: '💰', color: '#10b981' },

@@ -1,23 +1,52 @@
 import { useEffect, useState } from 'react'
 import { api } from '../storage'
 import { CATEGORY_COLORS, CATEGORY_ICONS, fmt } from '../utils/format'
-import { getAccounts, ACCOUNT_TYPES } from '../utils/accounts'
+import { getAccounts, ACCOUNT_TYPES, getManualIncome, saveManualIncome } from '../utils/accounts'
 import { useAuth } from '../context/AuthContext'
 
 export default function Dashboard() {
   const { user } = useAuth()
-  const [summary, setSummary] = useState(null)
+  const email = user?.email ?? ''
+
+  const [summary, setSummary]         = useState(null)
   const [transactions, setTransactions] = useState([])
-  const [accounts, setAccounts] = useState([])
+  const [accounts, setAccounts]       = useState([])
+  const [manualIncome, setManualIncome] = useState(0)
+  const [editingIncome, setEditingIncome] = useState(false)
+  const [incomeInput, setIncomeInput] = useState('')
 
   useEffect(() => {
     api.getSummary().then(setSummary)
     api.getTransactions().then(d => setTransactions(d.slice(0, 8)))
-    setAccounts(getAccounts(user?.email ?? ''))
-  }, [user?.email])
+    setAccounts(getAccounts(email))
+    setManualIncome(getManualIncome(email))
+  }, [email])
+
+  // Effective income: manual override takes precedence if set
+  const effectiveIncome  = manualIncome > 0 ? manualIncome : (summary?.income ?? 0)
+  const effectiveBalance = effectiveIncome - (summary?.expenses ?? 0)
+  const savingsRate      = effectiveIncome > 0
+    ? Math.round((effectiveBalance / effectiveIncome) * 100)
+    : null
 
   const cats = summary?.spendingByCategory ?? {}
   const maxCat = Math.max(...Object.values(cats), 1)
+
+  function openIncomeEdit() {
+    setIncomeInput(String(manualIncome || summary?.income || ''))
+    setEditingIncome(true)
+  }
+  function saveIncome() {
+    const val = parseFloat(incomeInput) || 0
+    saveManualIncome(email, val)
+    setManualIncome(val)
+    setEditingIncome(false)
+  }
+  function clearIncome() {
+    saveManualIncome(email, 0)
+    setManualIncome(0)
+    setEditingIncome(false)
+  }
 
   return (
     <div>
@@ -29,21 +58,60 @@ export default function Dashboard() {
       </div>
 
       <div className="stats-grid">
+        {/* Balance — derived, not editable */}
         <div className="stat-card">
           <div className="stat-label">Balance</div>
-          <div className={`stat-value ${summary?.balance >= 0 ? 'green' : 'red'}`}>
-            {summary ? fmt(summary.balance) : '—'}
+          <div className={`stat-value ${effectiveBalance >= 0 ? 'green' : 'red'}`}>
+            {summary ? fmt(effectiveBalance) : '—'}
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-label">Income</div>
-          <div className="stat-value green">{summary ? fmt(summary.income) : '—'}</div>
+
+        {/* Income — editable */}
+        <div className="stat-card stat-card--editable" onClick={!editingIncome ? openIncomeEdit : undefined}
+          title="Click to set your monthly income">
+          <div className="stat-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            Income
+            {manualIncome > 0
+              ? <span style={{ fontSize: 10, background: 'rgba(99,102,241,.18)', color: 'var(--accent)', padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>manual</span>
+              : <span style={{ fontSize: 11, color: 'var(--muted)', opacity: .7 }}>✎</span>
+            }
+          </div>
+          {editingIncome ? (
+            <div className="income-edit-row" onClick={e => e.stopPropagation()}>
+              <span style={{ color: 'var(--muted)', fontSize: 14 }}>R</span>
+              <input
+                className="income-edit-input"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="e.g. 25000"
+                value={incomeInput}
+                onChange={e => setIncomeInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveIncome(); if (e.key === 'Escape') setEditingIncome(false) }}
+                autoFocus
+              />
+              <button className="btn btn-primary" style={{ padding: '4px 10px', fontSize: 12 }} onClick={saveIncome}>Save</button>
+              {manualIncome > 0 && (
+                <button className="btn" style={{ padding: '4px 10px', fontSize: 12 }} onClick={clearIncome}>Clear</button>
+              )}
+            </div>
+          ) : (
+            <div className="stat-value green">{summary ? fmt(effectiveIncome) : '—'}</div>
+          )}
         </div>
+
+        {/* Spent */}
         <div className="stat-card">
           <div className="stat-label">Spent</div>
           <div className="stat-value red">{summary ? fmt(summary.expenses) : '—'}</div>
         </div>
       </div>
+
+      {manualIncome > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 16, marginTop: -8 }}>
+          Income set manually. <button className="btn-text" style={{ fontSize: 12 }} onClick={openIncomeEdit}>Edit</button> · <button className="btn-text" style={{ fontSize: 12 }} onClick={clearIncome}>Use calculated</button>
+        </div>
+      )}
 
       {/* Accounts widget */}
       {accounts.length > 0 && (
@@ -87,9 +155,7 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-title">Savings rate</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)' }}>
-            {summary && summary.income > 0
-              ? `${Math.round(((summary.income - summary.expenses) / summary.income) * 100)}%`
-              : '—'}
+            {savingsRate !== null ? `${savingsRate}%` : '—'}
           </div>
         </div>
       </div>
