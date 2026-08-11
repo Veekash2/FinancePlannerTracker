@@ -755,3 +755,130 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 700;
   color: var(--green);
 }
+
+/* ── Quick-Add FAB ─────────────────────────────────────────────────────────── */
+.quick-add-fab {
+  position: fixed;
+  bottom: 90px;
+  right: 20px;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 32px;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 24px rgba(99,102,241,.5);
+  z-index: 150;
+  transition: transform .15s, box-shadow .15s;
+  line-height: 1;
+}
+.quick-add-fab:hover { transform: scale(1.08); box-shadow: 0 6px 32px rgba(99,102,241,.65); }
+
+@media (min-width: 701px) {
+  .quick-add-fab { bottom: 28px; }
+}
+
+.quick-add-modal { max-width: 380px; }
+
+.quick-type-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+.quick-type-btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  transition: background .15s, color .15s;
+}
+.quick-type-btn--expense { background: rgba(239,68,68,.12); color: var(--red); }
+.quick-type-btn--income  { background: rgba(34,197,94,.12); color: var(--green); }
+
+.quick-amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.quick-amount-prefix { font-size: 28px; font-weight: 700; color: var(--muted); }
+.quick-amount-input {
+  flex: 1;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  outline: none;
+  width: 100%;
+}
+.quick-amount-input:focus { border-color: var(--accent); }
+
+/* ── Alert banners ─────────────────────────────────────────────────────────── */
+.alert-stack {
+  position: fixed;
+  top: 54px; /* below mobile header */
+  left: 0; right: 0;
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+@media (min-width: 701px) {
+  .alert-stack { top: 0; left: 220px; }
+}
+
+.alert-item {
+  background: rgba(245,158,11,.15);
+  border-bottom: 1px solid rgba(245,158,11,.3);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+.alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.alert-dismiss { color: var(--muted); font-size: 14px; padding: 2px 6px; margin-left: auto; }
+.alert-dismiss:hover { color: var(--text); }
+
+/* ── Daily spend limit bar ─────────────────────────────────────────────────── */
+.daily-bar-track {
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.daily-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width .4s ease, background .3s;
+}
+
+/* ── Month-over-month ──────────────────────────────────────────────────────── */
+.mom-row {
+  display: grid;
+  grid-template-columns: 1fr 64px 64px 44px;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.mom-cat  { color: var(--text); font-weight: 500; }
+.mom-prev { color: var(--muted); text-align: right; }
+.mom-cur  { font-weight: 700; text-align: right; }
+.mom-delta { font-size: 12px; font-weight: 600; text-align: right; }
+.mom-delta.green { color: var(--green); }
+.mom-delta.red   { color: var(--red); }
+
+/* ── Heatmap ───────────────────────────────────────────────────────────────── */
+/* cells are inline divs — no additional classes needed beyond inline styles */

@@ -43,6 +43,24 @@ export default function Transactions() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const body = { ...form, amount: parseFloat(form.amount) }
+
+    // Duplicate check — only on new transactions
+    if (!editTxn) {
+      const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      const dupe = txns.find(t => {
+        const tDate = new Date(t.date)
+        return tDate >= sevenDaysAgo &&
+          Math.abs(parseFloat(t.amount) - body.amount) < 0.01 &&
+          t.description.toLowerCase().slice(0, 10) === body.description.toLowerCase().slice(0, 10)
+      })
+      if (dupe) {
+        const ok = window.confirm(
+          `Similar transaction found (${dupe.date}): "${dupe.description}" R${dupe.amount}\n\nAdd anyway?`
+        )
+        if (!ok) return
+      }
+    }
+
     if (editTxn) await api.updateTransaction(editTxn.id, body)
     else         await api.addTransaction(body)
     closeModal()
