@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../storage'
 import { fmt } from '../utils/format'
-import { exportFinancialReport } from '../utils/exportSpreadsheet'
+import { exportFinancialPDF } from '../utils/exportPDF'
 
 export default function Profile() {
   const { user, logout } = useAuth()
-  const [data, setData] = useState(null)
+  const [data, setData]         = useState(null)
   const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
@@ -20,11 +20,11 @@ export default function Profile() {
     })
   }, [])
 
-  const handleExport = async () => {
+  const handleExport = () => {
     if (!data) return
     setExporting(true)
     try {
-      exportFinancialReport(data)
+      exportFinancialPDF(data)
     } finally {
       setExporting(false)
     }
@@ -42,7 +42,9 @@ export default function Profile() {
       <div className="card profile-user-card">
         {user?.picture
           ? <img src={user.picture} alt="" className="profile-avatar" />
-          : <div className="profile-avatar profile-avatar-fallback">{(user?.name ?? user?.email ?? '?')[0].toUpperCase()}</div>
+          : <div className="profile-avatar profile-avatar-fallback">
+              {(user?.name ?? user?.email ?? '?')[0].toUpperCase()}
+            </div>
         }
         <div>
           <div className="profile-name">{user?.name ?? 'User'}</div>
@@ -95,11 +97,11 @@ export default function Profile() {
         </div>
       )}
 
-      {/* Export */}
+      {/* PDF Export */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">Export Financial Report</div>
         <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 16, lineHeight: 1.6 }}>
-          Download a professional Excel spreadsheet with all your financial data — transactions, savings goals, subscriptions, and a full monthly summary.
+          Download a professional PDF report with your transactions, savings goals, subscriptions, and monthly summary.
         </p>
         <button
           className="btn btn-primary"
@@ -112,7 +114,7 @@ export default function Profile() {
             <polyline points="7 10 12 15 17 10"/>
             <line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          {exporting ? 'Generating…' : 'Download Excel Report'}
+          {exporting ? 'Generating…' : 'Download PDF Report'}
         </button>
       </div>
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api } from '../storage'
 import { CATEGORY_COLORS, CATEGORY_ICONS, fmt, fmtDate } from '../utils/format'
+import { suggestCategory } from '../utils/gemini'
 
 const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Salary', 'Freelance', 'Other']
-const INCOME_CATS = ['Salary', 'Freelance', 'Other']
+const INCOME_CATS  = ['Salary', 'Freelance', 'Other']
 const EXPENSE_CATS = CATEGORIES.filter(c => c !== 'Salary' && c !== 'Freelance')
 
 const emptyForm = {
@@ -21,16 +22,17 @@ function PencilIcon() {
 }
 
 export default function Transactions() {
-  const [txns, setTxns] = useState([])
+  const [txns, setTxns]           = useState([])
   const [showModal, setShowModal] = useState(false)
-  const [editTxn, setEditTxn] = useState(null)
-  const [form, setForm] = useState(emptyForm)
-  const [filter, setFilter] = useState('all')
+  const [editTxn, setEditTxn]     = useState(null)
+  const [form, setForm]           = useState(emptyForm)
+  const [filter, setFilter]       = useState('all')
+  const [suggesting, setSuggesting] = useState(false)
 
   const load = () => api.getTransactions().then(setTxns)
   useEffect(() => { load() }, [])
 
-  const openAdd = () => { setForm(emptyForm); setEditTxn(null); setShowModal(true) }
+  const openAdd  = () => { setForm(emptyForm); setEditTxn(null); setShowModal(true) }
   const openEdit = (t) => {
     setForm({ description: t.description, amount: String(t.amount), category: t.category, type: t.type, date: t.date })
     setEditTxn(t)
@@ -41,11 +43,8 @@ export default function Transactions() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const body = { ...form, amount: parseFloat(form.amount) }
-    if (editTxn) {
-      await api.updateTransaction(editTxn.id, body)
-    } else {
-      await api.addTransaction(body)
-    }
+    if (editTxn) await api.updateTransaction(editTxn.id, body)
+    else         await api.addTransaction(body)
     closeModal()
     load()
   }
@@ -53,6 +52,17 @@ export default function Transactions() {
   const handleDelete = async (id) => {
     await api.deleteTransaction(id)
     load()
+  }
+
+  const handleAISuggest = async () => {
+    if (!form.description.trim()) return
+    setSuggesting(true)
+    try {
+      const cat = await suggestCategory(form.description)
+      const cats = form.type === 'income' ? INCOME_CATS : EXPENSE_CATS
+      if (cats.includes(cat)) setForm(f => ({ ...f, category: cat }))
+    } catch {}
+    finally { setSuggesting(false) }
   }
 
   const visible = txns.filter(t => filter === 'all' || t.type === filter)
@@ -146,9 +156,28 @@ export default function Transactions() {
             <form onSubmit={handleSubmit}>
               <div className="form-group">
                 <label className="form-label">Description</label>
-                <input className="form-input" required value={form.description}
-                  onChange={e => setForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Groceries" />
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    className="form-input"
+                    required
+                    value={form.description}
+                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    placeholder="e.g. Groceries at Checkers"
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost ai-suggest-btn"
+                    title="AI: suggest category"
+                    onClick={handleAISuggest}
+                    disabled={suggesting || !form.description.trim()}
+                  >
+                    {suggesting ? '…' : '✨'}
+                  </button>
+                </div>
+                {suggesting && <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 3 }}>Suggesting category…</div>}
               </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Amount (R)</label>
@@ -161,6 +190,7 @@ export default function Transactions() {
                     onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
                 </div>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Category</label>
                 <select className="form-input" value={form.category}
@@ -168,6 +198,7 @@ export default function Transactions() {
                   {cats.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
+
               <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}>
                 {editTxn ? 'Save Changes' : 'Add Transaction'}
               </button>

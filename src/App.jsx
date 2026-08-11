@@ -4,15 +4,17 @@ import Transactions from './pages/Transactions'
 import Goals from './pages/Goals'
 import Subscriptions from './pages/Subscriptions'
 import Profile from './pages/Profile'
+import AIAssistant from './pages/AIAssistant'
 import Login from './pages/Login'
 import { useAuth } from './context/AuthContext'
 
 const PAGES = [
-  { id: 'dashboard', label: 'Overview', icon: '📊' },
-  { id: 'transactions', label: 'Transactions', icon: '💳' },
-  { id: 'goals', label: 'Goals', icon: '🎯' },
-  { id: 'subscriptions', label: 'Subscriptions', icon: '🔁' },
-  { id: 'profile', label: 'Profile', icon: '👤' },
+  { id: 'dashboard',    label: 'Overview',      icon: '📊' },
+  { id: 'transactions', label: 'Transactions',  icon: '💳' },
+  { id: 'goals',        label: 'Goals',         icon: '🎯' },
+  { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
+  { id: 'ai',           label: 'AI Assistant',  icon: '✨' },
+  { id: 'profile',      label: 'Profile',       icon: '👤' },
 ]
 
 function NavItem({ page, active, onClick }) {
@@ -42,11 +44,12 @@ export default function App() {
   if (!isAuthed) return <Login />
 
   const renderPage = () => {
-    if (page === 'dashboard') return <Dashboard />
-    if (page === 'transactions') return <Transactions />
-    if (page === 'goals') return <Goals />
+    if (page === 'dashboard')     return <Dashboard />
+    if (page === 'transactions')  return <Transactions />
+    if (page === 'goals')         return <Goals />
     if (page === 'subscriptions') return <Subscriptions />
-    if (page === 'profile') return <Profile />
+    if (page === 'ai')            return <AIAssistant />
+    if (page === 'profile')       return <Profile />
   }
 
   return (
@@ -60,11 +63,7 @@ export default function App() {
         </nav>
         <div style={{ padding: '16px 10px 0', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
           {user?.picture && (
-            <button
-              className="nav-item"
-              style={{ width: '100%', textAlign: 'left' }}
-              onClick={() => setPage('profile')}
-            >
+            <button className="nav-item" style={{ width: '100%', textAlign: 'left' }} onClick={() => setPage('profile')}>
               <img src={user.picture} alt="" style={{ width: 24, height: 24, borderRadius: '50%', flexShrink: 0 }} />
               <span style={{ fontSize: 13, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {user.name || user.email}
