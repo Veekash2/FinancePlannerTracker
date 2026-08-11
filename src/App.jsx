@@ -6,28 +6,30 @@ import Subscriptions from './pages/Subscriptions'
 import Profile from './pages/Profile'
 import AIAssistant from './pages/AIAssistant'
 import Accounts from './pages/Accounts'
+import Budget from './pages/Budget'
 import Login from './pages/Login'
 import QuickAdd from './components/QuickAdd'
 import AlertBanner from './components/AlertBanner'
 import { useAuth } from './context/AuthContext'
 
-// Desktop sidebar — all 6 pages
+// Desktop sidebar
 const PAGES = [
   { id: 'dashboard',    label: 'Overview',      icon: '📊' },
   { id: 'accounts',     label: 'Accounts',      icon: '🏦' },
   { id: 'transactions', label: 'Transactions',  icon: '💳' },
   { id: 'goals',        label: 'Goals',         icon: '🎯' },
+  { id: 'budget',       label: 'Budget',        icon: '📋' },
   { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
   { id: 'ai',           label: 'AI Assistant',  icon: '✨' },
 ]
 
-// Mobile bottom nav — 5 core pages (AI + Profile live in the top header)
+// Mobile bottom nav — 5 core pages (AI + Profile in top header)
 const MOBILE_PAGES = [
-  { id: 'dashboard',    label: 'Overview',      icon: '📊' },
-  { id: 'accounts',     label: 'Accounts',      icon: '🏦' },
-  { id: 'transactions', label: 'Transactions',  icon: '💳' },
-  { id: 'goals',        label: 'Goals',         icon: '🎯' },
-  { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
+  { id: 'dashboard',    label: 'Overview', icon: '📊' },
+  { id: 'transactions', label: 'Txns',     icon: '💳' },
+  { id: 'budget',       label: 'Budget',   icon: '📋' },
+  { id: 'goals',        label: 'Goals',    icon: '🎯' },
+  { id: 'accounts',     label: 'Accounts', icon: '🏦' },
 ]
 
 function NavItem({ page, active, onClick }) {
@@ -64,6 +66,7 @@ export default function App() {
     if (page === 'transactions')  return <Transactions key={key} />
     if (page === 'goals')         return <Goals />
     if (page === 'subscriptions') return <Subscriptions key={key} />
+    if (page === 'budget')        return <Budget key={key} />
     if (page === 'ai')            return <AIAssistant />
     if (page === 'profile')       return <Profile />
   }

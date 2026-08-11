@@ -4,6 +4,8 @@ import { CATEGORY_COLORS, CATEGORY_ICONS, fmt, fmtDate } from '../utils/format'
 import { suggestCategory } from '../utils/gemini'
 import { getAccounts, ACCOUNT_TYPES } from '../utils/accounts'
 import { setTxnAccount, removeTxnAccount, getAllTxnAccounts } from '../utils/txnAccounts'
+import { saveRecurringTxn, getRecurringTxns, removeRecurringTxn } from '../utils/recurringTxns'
+import { exportTransactionsCSV } from '../utils/exportCSV'
 import { useAuth } from '../context/AuthContext'
 
 const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Salary', 'Freelance', 'Other']
@@ -28,23 +30,33 @@ export default function Transactions() {
   const { user } = useAuth()
   const email = user?.email ?? ''
 
-  const [txns, setTxns]           = useState([])
-  const [accounts, setAccounts]   = useState([])
-  const [txnAccMap, setTxnAccMap] = useState({})
-  const [showModal, setShowModal] = useState(false)
-  const [editTxn, setEditTxn]     = useState(null)
-  const [form, setForm]           = useState(emptyForm)
-  const [filter, setFilter]       = useState('all')
-  const [suggesting, setSuggesting] = useState(false)
+  const [txns, setTxns]               = useState([])
+  const [accounts, setAccounts]       = useState([])
+  const [txnAccMap, setTxnAccMap]     = useState({})
+  const [recurringTpls, setRecTpls]   = useState([])
+  const [showModal, setShowModal]     = useState(false)
+  const [editTxn, setEditTxn]         = useState(null)
+  const [form, setForm]               = useState(emptyForm)
+  const [saveAsRecurring, setSaveAsRecurring] = useState(false)
+  const [filter, setFilter]           = useState('all')
+  const [search, setSearch]           = useState('')
+  const [dateFrom, setDateFrom]       = useState('')
+  const [dateTo, setDateTo]           = useState('')
+  const [suggesting, setSuggesting]   = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
+  const loadAll = () => {
+    api.getTransactions().then(setTxns)
+    setRecTpls(getRecurringTxns(email))
+  }
   const load = () => api.getTransactions().then(setTxns)
   useEffect(() => {
-    load()
+    loadAll()
     setAccounts(getAccounts(email))
     setTxnAccMap(getAllTxnAccounts(email))
   }, [email])
 
-  const openAdd  = () => { setForm(emptyForm); setEditTxn(null); setShowModal(true) }
+  const openAdd  = () => { setForm(emptyForm); setEditTxn(null); setSaveAsRecurring(false); setShowModal(true) }
   const openEdit = (t) => {
     setForm({
       description: t.description, amount: String(t.amount),
@@ -84,8 +96,10 @@ export default function Transactions() {
     } else {
       const result = await api.addTransaction(body)
       if (form.accountId && result?.id) setTxnAccount(email, result.id, form.accountId)
+      if (saveAsRecurring) saveRecurringTxn(email, { ...form, amount: parseFloat(form.amount) })
     }
     setTxnAccMap(getAllTxnAccounts(email))
+    setRecTpls(getRecurringTxns(email))
     closeModal()
     load()
   }
@@ -106,7 +120,13 @@ export default function Transactions() {
     finally { setSuggesting(false) }
   }
 
-  const visible = txns.filter(t => filter === 'all' || t.type === filter)
+  const visible = txns.filter(t => {
+    if (filter !== 'all' && t.type !== filter) return false
+    if (search && !t.description.toLowerCase().includes(search.toLowerCase()) && !t.category.toLowerCase().includes(search.toLowerCase())) return false
+    if (dateFrom && t.date < dateFrom) return false
+    if (dateTo   && t.date > dateTo)   return false
+    return true
+  })
   const grouped = visible.reduce((acc, t) => {
     if (!acc[t.date]) acc[t.date] = []
     acc[t.date].push(t)
@@ -119,26 +139,94 @@ export default function Transactions() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Transactions</h1>
-        <button className="btn btn-primary" onClick={openAdd}>+ Add</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-ghost" style={{ fontSize: 13 }}
+            onClick={() => exportTransactionsCSV(txns)}>⬇ CSV</button>
+          <button className="btn btn-primary" onClick={openAdd}>+ Add</button>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+      {/* Search bar */}
+      <div style={{ position: 'relative', marginBottom: 10 }}>
+        <input className="form-input" placeholder="🔍 Search description or category…"
+          value={search} onChange={e => setSearch(e.target.value)}
+          style={{ paddingRight: search ? 36 : undefined }} />
+        {search && (
+          <button onClick={() => setSearch('')}
+            style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 16 }}>✕</button>
+        )}
+      </div>
+
+      {/* Filter row */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         {['all', 'income', 'expense'].map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            style={{
-              padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-              background: filter === f ? 'var(--accent-glow)' : 'var(--surface)',
-              border: '1px solid var(--border)',
-              color: filter === f ? 'var(--accent)' : 'var(--muted)',
-              cursor: 'pointer',
-            }}
-          >
+          <button key={f} onClick={() => setFilter(f)} style={{
+            padding: '6px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+            background: filter === f ? 'var(--accent-glow)' : 'var(--surface)',
+            border: '1px solid var(--border)',
+            color: filter === f ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer',
+          }}>
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
         ))}
+        <button onClick={() => setShowFilters(f => !f)} style={{
+          padding: '6px 12px', borderRadius: 8, fontSize: 13,
+          background: (dateFrom || dateTo) ? 'var(--accent-glow)' : 'var(--surface)',
+          border: '1px solid var(--border)',
+          color: (dateFrom || dateTo) ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer',
+        }}>
+          📅 {showFilters ? 'Hide' : 'Dates'}
+        </button>
+        {(dateFrom || dateTo) && (
+          <button className="btn-text" style={{ fontSize: 12 }}
+            onClick={() => { setDateFrom(''); setDateTo('') }}>Clear dates</button>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--muted)' }}>{visible.length} shown</span>
       </div>
+
+      {/* Date filter panel */}
+      {showFilters && (
+        <div className="card" style={{ padding: '12px 14px', marginBottom: 10 }}>
+          <div className="form-row" style={{ marginBottom: 0 }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">From</label>
+              <input className="form-input" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label className="form-label">To</label>
+              <input className="form-input" type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recurring templates */}
+      {recurringTpls.length > 0 && (
+        <div className="card" style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>🔁 Recurring templates</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {recurringTpls.map(tpl => (
+              <div key={tpl.id} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tpl.description}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tpl.category} · {fmt(tpl.amount)}</div>
+                </div>
+                <button className="btn btn-ghost" style={{ fontSize: 12, padding: '4px 10px' }}
+                  onClick={() => {
+                    setForm({ description: tpl.description, amount: String(tpl.amount), category: tpl.category, type: tpl.type, date: new Date().toISOString().slice(0,10), accountId: tpl.accountId ?? '' })
+                    setSaveAsRecurring(false)
+                    setEditTxn(null)
+                    setShowModal(true)
+                  }}>
+                  + Re-add
+                </button>
+                <button className="btn-text" style={{ color: 'var(--red)', fontSize: 16 }}
+                  onClick={() => { removeRecurringTxn(email, tpl.id); setRecTpls(getRecurringTxns(email)) }}>×</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card">
         {visible.length === 0 ? (
@@ -267,7 +355,14 @@ export default function Transactions() {
                 )}
               </div>
 
-              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}>
+              {!editTxn && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--muted)', margin: '10px 0 0', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={saveAsRecurring} onChange={e => setSaveAsRecurring(e.target.checked)} />
+                  Save as recurring template
+                </label>
+              )}
+
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 10 }}>
                 {editTxn ? 'Save Changes' : 'Add Transaction'}
               </button>
             </form>

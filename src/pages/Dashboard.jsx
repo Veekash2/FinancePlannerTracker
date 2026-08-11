@@ -5,6 +5,8 @@ import { getAccounts, updateAccount, ACCOUNT_TYPES, getManualIncome, saveManualI
 import { getSetting, setSetting } from '../utils/settings'
 import { useAuth } from '../context/AuthContext'
 import { DonutChart, AreaChart } from '../components/Charts'
+import { logNetWorth, getNetWorthHistory } from '../utils/netWorthHistory'
+import { getBudgets } from '../utils/budgets'
 
 // ── Spending heatmap (last 13 weeks) ────────────────────────────────────────
 function SpendHeatmap({ txns }) {
@@ -201,6 +203,8 @@ export default function Dashboard() {
   const [allTxns, setAllTxns]             = useState([])
   const [recentTxns, setRecentTxns]       = useState([])
   const [accounts, setAccounts]           = useState([])
+  const [goals, setGoals]                 = useState([])
+  const [nwHistory, setNwHistory]         = useState([])
   const [manualIncome, setManualIncome]   = useState(0)
   const [editingIncome, setEditingIncome] = useState(false)
   const [incomeInput, setIncomeInput]     = useState('')
@@ -208,11 +212,16 @@ export default function Dashboard() {
   const [editingLimit, setEditingLimit]   = useState(false)
   const [limitInput, setLimitInput]       = useState('')
 
-  const reloadAccounts = () => setAccounts(getAccounts(email))
+  const reloadAccounts = () => {
+    const accs = getAccounts(email)
+    setAccounts(accs)
+    setNwHistory(getNetWorthHistory(email))
+  }
 
   useEffect(() => {
     api.getSummary().then(setSummary)
     api.getTransactions().then(txns => { setAllTxns(txns); setRecentTxns(txns.slice(0, 8)) })
+    api.getGoals().then(setGoals)
     reloadAccounts()
     setManualIncome(getManualIncome(email))
     setDailyLimit(getSetting(email, 'dailyLimit', 0))
@@ -251,8 +260,72 @@ export default function Dashboard() {
 
   function handleAccountSave(accId, balance) {
     updateAccount(email, accId, { balance })
+    // Log net worth snapshot after balance change
+    const updated = getAccounts(email)
+    const a = updated.filter(x => x.type !== 'credit').reduce((s, x) => s + (x.balance || 0), 0)
+    const d = updated.filter(x => x.type === 'credit').reduce((s, x) => s + (x.balance || 0), 0)
+    logNetWorth(email, a - d)
     reloadAccounts()
   }
+
+  // ── Financial health score (0–100) ───────────────────────────────────────
+  const calcHealthScore = () => {
+    if (!summary) return null
+    let score = 0
+
+    // Savings rate (0–30)
+    const sr = savingsRate ?? 0
+    score += sr >= 30 ? 30 : sr >= 20 ? 22 : sr >= 10 ? 14 : sr >= 0 ? 6 : 0
+
+    // Emergency fund (0–25): savings / (avg monthly expenses * 3)
+    const avgExp = allTxns.length > 0 ? (summary.expenses || 0) : 0
+    const savingsTotal = accounts.filter(a => a.type === 'savings' || a.type === 'cheque').reduce((s, a) => s + (a.balance || 0), 0)
+    const ef = avgExp > 0 ? savingsTotal / (avgExp * 3) : 0
+    score += Math.min(ef, 1) * 25
+
+    // Goal progress (0–20)
+    if (goals.length > 0) {
+      const avgPct = goals.reduce((s, g) => s + Math.min(g.current_amount / g.target_amount, 1), 0) / goals.length
+      score += avgPct * 20
+    } else {
+      score += 10 // neutral when no goals
+    }
+
+    // Budget adherence (0–15)
+    const budgets = getBudgets(email)
+    const budgetCats = Object.keys(budgets)
+    if (budgetCats.length > 0) {
+      const cats2 = summary.spendingByCategory ?? {}
+      const ok = budgetCats.filter(c => (cats2[c] || 0) <= budgets[c]).length
+      score += (ok / budgetCats.length) * 15
+    } else {
+      score += 7 // neutral when no budgets
+    }
+
+    // Debt-free bonus (0–10)
+    const debt = accounts.filter(a => a.type === 'credit').reduce((s, a) => s + (a.balance || 0), 0)
+    const totalAssets = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + (a.balance || 0), 0)
+    if (debt === 0) score += 10
+    else if (totalAssets > 0) score += Math.max(0, (1 - debt / totalAssets)) * 10
+
+    return Math.round(Math.min(score, 100))
+  }
+  const healthScore = calcHealthScore()
+  const healthColor = healthScore === null ? 'var(--muted)' : healthScore >= 75 ? 'var(--green)' : healthScore >= 50 ? 'var(--yellow)' : 'var(--red)'
+  const healthLabel = healthScore === null ? '—' : healthScore >= 75 ? 'Great' : healthScore >= 50 ? 'Fair' : 'Needs attention'
+
+  // ── Weekly digest ─────────────────────────────────────────────────────────
+  const todayD = new Date(); todayD.setHours(0, 0, 0, 0)
+  const weekAgo = new Date(todayD); weekAgo.setDate(weekAgo.getDate() - 7)
+  const twoWeeksAgo = new Date(todayD); twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14)
+  const thisWeekTxns = allTxns.filter(t => new Date(t.date) >= weekAgo && t.type === 'expense')
+  const lastWeekTxns = allTxns.filter(t => new Date(t.date) >= twoWeeksAgo && new Date(t.date) < weekAgo && t.type === 'expense')
+  const thisWeekSpend = thisWeekTxns.reduce((s, t) => s + parseFloat(t.amount), 0)
+  const lastWeekSpend = lastWeekTxns.reduce((s, t) => s + parseFloat(t.amount), 0)
+  const weekDelta = lastWeekSpend > 0 ? ((thisWeekSpend - lastWeekSpend) / lastWeekSpend) * 100 : null
+  const topCatMap = {}
+  thisWeekTxns.forEach(t => { topCatMap[t.category] = (topCatMap[t.category] || 0) + parseFloat(t.amount) })
+  const topCat = Object.entries(topCatMap).sort((a, b) => b[1] - a[1])[0]
 
   // ── Chart data ────────────────────────────────────────────────────────────
   const cats = summary?.spendingByCategory ?? {}
@@ -275,6 +348,14 @@ export default function Dashboard() {
   })
 
   const hasSpendingData = monthlySpend.some(p => p.value > 0)
+
+  // Net worth history for chart
+  const nwPoints = nwHistory.length >= 2
+    ? nwHistory.map(e => ({
+        label: new Date(e.month + '-01').toLocaleDateString('en-US', { month: 'short' }),
+        value: e.netWorth,
+      }))
+    : null
 
   return (
     <div>
@@ -339,6 +420,48 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ── Health score + Weekly digest ── */}
+      <div className="grid-2col" style={{ marginBottom: 20 }}>
+        {/* Financial health score */}
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <svg viewBox="0 0 80 80" style={{ width: 72, height: 72, flexShrink: 0 }}>
+            <circle cx="40" cy="40" r="32" fill="none" stroke="var(--surface2)" strokeWidth="8" />
+            <circle cx="40" cy="40" r="32" fill="none" stroke={healthColor} strokeWidth="8"
+              strokeDasharray={`${(healthScore ?? 0) / 100 * 201} 201`}
+              strokeLinecap="round"
+              transform="rotate(-90 40 40)"
+              style={{ transition: 'stroke-dasharray .6s ease' }} />
+            <text x="40" y="44" textAnchor="middle" fontSize="18" fontWeight="900" style={{ fill: healthColor }}>
+              {healthScore ?? '—'}
+            </text>
+          </svg>
+          <div>
+            <div className="card-title" style={{ marginBottom: 4 }}>Health score</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: healthColor }}>{healthLabel}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>savings · goals · budget · debt</div>
+          </div>
+        </div>
+
+        {/* Weekly digest */}
+        <div className="card">
+          <div className="card-title" style={{ marginBottom: 8 }}>This week</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>{fmt(thisWeekSpend)}</div>
+          {weekDelta !== null && (
+            <div style={{ fontSize: 12, marginTop: 4, color: weekDelta > 10 ? 'var(--red)' : weekDelta < -10 ? 'var(--green)' : 'var(--muted)' }}>
+              {weekDelta > 0 ? '↑' : '↓'}{Math.abs(Math.round(weekDelta))}% vs last week
+            </div>
+          )}
+          {topCat && (
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+              Top: {CATEGORY_ICONS[topCat[0]] ?? '📦'} {topCat[0]} {fmt(topCat[1])}
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+            {thisWeekTxns.length} transaction{thisWeekTxns.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+      </div>
+
       {/* ── Daily spend limit bar ── */}
       <div className="card" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: dailyLimit > 0 ? 10 : 0 }}>
@@ -378,6 +501,14 @@ export default function Dashboard() {
         <div className="card" style={{ marginBottom: 20 }}>
           <div className="card-title" style={{ marginBottom: 16 }}>Spending trend — last 6 months</div>
           <AreaChart points={monthlySpend} color="#6366f1" />
+        </div>
+      )}
+
+      {/* ── Net worth history ── */}
+      {nwPoints && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-title" style={{ marginBottom: 16 }}>Net worth history</div>
+          <AreaChart points={nwPoints} color="#22c55e" />
         </div>
       )}
 

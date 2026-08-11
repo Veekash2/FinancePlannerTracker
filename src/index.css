@@ -958,3 +958,26 @@ input, select, textarea { font: inherit; color: inherit; }
 .dash-account-item--editable:hover {
   background: var(--surface2);
 }
+
+/* ── Budget page tabs ──────────────────────────────────────────────────────── */
+.budget-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.budget-tab {
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+
+.budget-tab:hover { background: var(--surface2); color: var(--text); }
+.budget-tab--active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
