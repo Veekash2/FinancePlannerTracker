@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 import { CLIENT_ID, SCOPES } from '../config'
+import { setUserEmail } from '../storage'
 
 const AuthContext = createContext(null)
 
@@ -63,12 +64,15 @@ export function AuthProvider({ children }) {
     // 1. Returning from Google with a token
     if (accessToken) {
       window.history.replaceState(null, '', window.location.pathname)
+      // Set email immediately from cache so pages can query Supabase before fetchProfile resolves
+      if (savedUser?.email) setUserEmail(savedUser.email)
       setTokenState(accessToken)
       saveSession(accessToken)
       fetchProfile(accessToken)
         .then(profile => {
           const u = { email: profile.email, name: profile.name, picture: profile.picture }
           setUser(u)
+          setUserEmail(profile.email)
           localStorage.setItem('fp_user', JSON.stringify(u))
         })
         .catch(() => {})
@@ -88,6 +92,7 @@ export function AuthProvider({ children }) {
     const sessionToken = loadSession()
     if (sessionToken) {
       setTokenState(sessionToken)
+      if (savedUser?.email) setUserEmail(savedUser.email)
       setLoading(false)
       return
     }
