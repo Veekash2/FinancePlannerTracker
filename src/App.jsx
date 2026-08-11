@@ -9,6 +9,7 @@ import Accounts from './pages/Accounts'
 import Login from './pages/Login'
 import { useAuth } from './context/AuthContext'
 
+// Desktop sidebar — all 6 pages
 const PAGES = [
   { id: 'dashboard',    label: 'Overview',      icon: '📊' },
   { id: 'accounts',     label: 'Accounts',      icon: '🏦' },
@@ -16,6 +17,15 @@ const PAGES = [
   { id: 'goals',        label: 'Goals',         icon: '🎯' },
   { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
   { id: 'ai',           label: 'AI Assistant',  icon: '✨' },
+]
+
+// Mobile bottom nav — 5 core pages only (AI + Profile live in the top header)
+const MOBILE_PAGES = [
+  { id: 'dashboard',    label: 'Overview',      icon: '📊' },
+  { id: 'accounts',     label: 'Accounts',      icon: '🏦' },
+  { id: 'transactions', label: 'Transactions',  icon: '💳' },
+  { id: 'goals',        label: 'Goals',         icon: '🎯' },
+  { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
 ]
 
 function NavItem({ page, active, onClick }) {
@@ -56,6 +66,7 @@ export default function App() {
 
   return (
     <div className="app">
+      {/* Desktop sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">💰 Spendwise</div>
         <nav>
@@ -83,13 +94,38 @@ export default function App() {
         </div>
       </aside>
 
+      {/* Mobile top header */}
+      <header className="mobile-header">
+        <div className="mobile-header-logo">💰 Spendwise</div>
+        <div className="mobile-header-right">
+          <button
+            className={`mobile-header-btn ${page === 'ai' ? 'mobile-header-btn--active' : ''}`}
+            onClick={() => setPage('ai')}
+            title="AI Assistant"
+          >
+            ✨
+          </button>
+          <button
+            className={`mobile-avatar-btn ${page === 'profile' ? 'mobile-avatar-btn--active' : ''}`}
+            onClick={() => setPage('profile')}
+            title="Profile"
+          >
+            {user?.picture
+              ? <img src={user.picture} alt="Profile" style={{ width: 30, height: 30, borderRadius: '50%', display: 'block' }} />
+              : <span style={{ fontSize: 20 }}>👤</span>
+            }
+          </button>
+        </div>
+      </header>
+
       <main className="main">
         {renderPage()}
       </main>
 
+      {/* Mobile bottom nav — 5 items only */}
       <nav className="mobile-nav">
         <div className="mobile-nav-inner">
-          {PAGES.map(p => (
+          {MOBILE_PAGES.map(p => (
             <a
               key={p.id}
               href="#"
@@ -100,17 +136,6 @@ export default function App() {
               {p.label}
             </a>
           ))}
-          <a
-            href="#"
-            className={`mobile-nav-item ${page === 'profile' ? 'active' : ''}`}
-            onClick={e => { e.preventDefault(); setPage('profile') }}
-          >
-            {user?.picture
-              ? <img src={user.picture} alt="" style={{ width: 22, height: 22, borderRadius: '50%' }} />
-              : <span style={{ fontSize: 20 }}>👤</span>
-            }
-            Profile
-          </a>
         </div>
       </nav>
     </div>

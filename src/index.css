@@ -84,6 +84,62 @@ input, select, textarea { font: inherit; color: inherit; }
   max-width: 960px;
 }
 
+.mobile-header {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 54px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 101;
+}
+
+.mobile-header-logo {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.3px;
+}
+
+.mobile-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobile-header-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: transparent;
+  transition: background .15s, color .15s;
+}
+.mobile-header-btn:hover,
+.mobile-header-btn--active { background: var(--accent-glow); color: var(--accent); }
+
+.mobile-avatar-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface2);
+  border: 2px solid transparent;
+  transition: border-color .15s;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.mobile-avatar-btn--active { border-color: var(--accent); }
+
 .mobile-nav {
   display: none;
   position: fixed;
@@ -316,8 +372,9 @@ input, select, textarea { font: inherit; color: inherit; }
 
 @media (max-width: 700px) {
   .sidebar { display: none; }
+  .mobile-header { display: flex; }
   .mobile-nav { display: block; }
-  .main { margin-left: 0; padding: 16px 14px 80px; }
+  .main { margin-left: 0; padding: 70px 14px 84px; }
   .stats-grid { grid-template-columns: 1fr 1fr; }
   .form-row { grid-template-columns: 1fr; }
 }
