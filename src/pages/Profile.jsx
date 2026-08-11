@@ -72,7 +72,7 @@ export default function Profile() {
       {data?.summary && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-title">This month</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 4 }}>
+          <div className="grid-2col" style={{ marginBottom: 0, gap: 16, marginTop: 4 }}>
             <div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 2 }}>Income</div>
               <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--green)' }}>{fmt(data.summary.income)}</div>

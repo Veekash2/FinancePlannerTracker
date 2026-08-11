@@ -407,7 +407,7 @@ export default function Dashboard() {
       )}
 
       {/* ── Spending by category (donut) + Recent transactions ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+      <div className="grid-2col">
         <div className="card">
           <div className="card-title">Spending by category</div>
           {donutSegments.length === 0 ? (
@@ -459,7 +459,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Subscriptions/mo + Savings rate ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+      <div className="grid-2col">
         <div className="card">
           <div className="card-title">Subscriptions / mo</div>
           <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--yellow)' }}>

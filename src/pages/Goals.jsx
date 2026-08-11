@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 import { api } from '../storage'
 import { fmt } from '../utils/format'
+import { useAuth } from '../context/AuthContext'
+import { setGoalPriority, getAllGoalPriorities } from '../utils/goalMeta'
 
 const SWATCHES = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#8b5cf6', '#f97316']
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 }
+const PRIORITY_META = {
+  high:   { label: '🔴 High',   bg: 'rgba(239,68,68,.15)',   color: 'var(--red)' },
+  medium: { label: '🟡 Medium', bg: 'rgba(245,158,11,.15)',  color: 'var(--yellow)' },
+  low:    { label: '🟢 Low',    bg: 'rgba(34,197,94,.15)',   color: 'var(--green)' },
+}
 
-const emptyForm = { name: '', target_amount: '', current_amount: '', color: '#6366f1', deadline: '' }
+const emptyForm = { name: '', target_amount: '', current_amount: '', color: '#6366f1', deadline: '', priority: 'medium' }
 
 function PencilIcon() {
   return (
@@ -16,19 +24,33 @@ function PencilIcon() {
 }
 
 export default function Goals() {
-  const [goals, setGoals] = useState([])
-  const [showModal, setShowModal] = useState(false)
-  const [editGoal, setEditGoal] = useState(null)
+  const { user } = useAuth()
+  const email = user?.email ?? ''
+
+  const [goals, setGoals]           = useState([])
+  const [priorities, setPriorities] = useState({})
+  const [showModal, setShowModal]   = useState(false)
+  const [editGoal, setEditGoal]     = useState(null)
   const [depositGoal, setDepositGoal] = useState(null)
   const [depositAmt, setDepositAmt] = useState('')
-  const [form, setForm] = useState(emptyForm)
+  const [form, setForm]             = useState(emptyForm)
 
-  const load = () => api.getGoals().then(setGoals)
-  useEffect(() => { load() }, [])
+  const load = () => {
+    api.getGoals().then(setGoals)
+    setPriorities(getAllGoalPriorities(email))
+  }
+  useEffect(() => { load() }, [email])
 
   const openAdd = () => { setForm(emptyForm); setEditGoal(null); setShowModal(true) }
   const openEdit = (g) => {
-    setForm({ name: g.name, target_amount: String(g.target_amount), current_amount: String(g.current_amount), color: g.color, deadline: g.deadline ?? '' })
+    setForm({
+      name: g.name,
+      target_amount: String(g.target_amount),
+      current_amount: String(g.current_amount),
+      color: g.color,
+      deadline: g.deadline ?? '',
+      priority: priorities[g.id] ?? 'medium',
+    })
     setEditGoal(g)
     setShowModal(true)
   }
@@ -43,11 +65,15 @@ export default function Goals() {
       color: form.color,
       deadline: form.deadline || null,
     }
+    let goalId
     if (editGoal) {
       await api.updateGoal(editGoal.id, body)
+      goalId = editGoal.id
     } else {
-      await api.addGoal(body)
+      const result = await api.addGoal(body)
+      goalId = result?.id
     }
+    if (goalId) setGoalPriority(email, goalId, form.priority)
     closeModal()
     load()
   }
@@ -66,6 +92,13 @@ export default function Goals() {
     load()
   }
 
+  // Sort by priority (High → Medium → Low → unprioritised)
+  const sortedGoals = [...goals].sort((a, b) => {
+    const pa = PRIORITY_ORDER[priorities[a.id]] ?? 3
+    const pb = PRIORITY_ORDER[priorities[b.id]] ?? 3
+    return pa - pb
+  })
+
   return (
     <div>
       <div className="page-header">
@@ -73,7 +106,7 @@ export default function Goals() {
         <button className="btn btn-primary" onClick={openAdd}>+ New Goal</button>
       </div>
 
-      {goals.length === 0 ? (
+      {sortedGoals.length === 0 ? (
         <div className="card">
           <div className="empty">
             <div className="empty-icon">🎯</div>
@@ -82,14 +115,26 @@ export default function Goals() {
         </div>
       ) : (
         <div className="goals-grid">
-          {goals.map(g => {
+          {sortedGoals.map(g => {
             const pct = Math.min(100, Math.round((g.current_amount / g.target_amount) * 100))
             const remaining = g.target_amount - g.current_amount
+            const pri = priorities[g.id]
+            const priMeta = PRIORITY_META[pri]
             return (
               <div className="goal-card" key={g.id}>
                 <div className="goal-header">
-                  <div className="goal-name">{g.name}</div>
-                  <div style={{ display: 'flex', gap: 4 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
+                    <div className="goal-name">{g.name}</div>
+                    {priMeta && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 4, flexShrink: 0,
+                        background: priMeta.bg, color: priMeta.color,
+                      }}>
+                        {priMeta.label}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                     <button className="btn-icon" title="Edit" onClick={() => openEdit(g)}><PencilIcon /></button>
                     <button className="btn btn-danger" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => handleDelete(g.id)}>×</button>
                   </div>
@@ -139,6 +184,27 @@ export default function Goals() {
                 <input className="form-input" required value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Emergency fund" />
               </div>
+
+              {/* Priority selector */}
+              <div className="form-group">
+                <label className="form-label">Priority</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {Object.entries(PRIORITY_META).map(([v, meta]) => (
+                    <button type="button" key={v}
+                      style={{
+                        flex: 1, padding: '8px 4px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                        border: `1px solid ${form.priority === v ? meta.color : 'var(--border)'}`,
+                        background: form.priority === v ? meta.bg : 'var(--surface2)',
+                        color: form.priority === v ? meta.color : 'var(--muted)',
+                        cursor: 'pointer', transition: 'all .15s',
+                      }}
+                      onClick={() => setForm(f => ({ ...f, priority: v }))}>
+                      {meta.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Target (R)</label>
@@ -151,11 +217,13 @@ export default function Goals() {
                     onChange={e => setForm(f => ({ ...f, current_amount: e.target.value }))} placeholder="0" />
                 </div>
               </div>
+
               <div className="form-group">
                 <label className="form-label">Deadline (optional)</label>
                 <input className="form-input" type="date" value={form.deadline}
                   onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))} />
               </div>
+
               <div className="form-group">
                 <label className="form-label">Color</label>
                 <div className="color-swatches">
@@ -165,6 +233,7 @@ export default function Goals() {
                   ))}
                 </div>
               </div>
+
               <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}>
                 {editGoal ? 'Save Changes' : 'Create Goal'}
               </button>

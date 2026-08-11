@@ -31,7 +31,7 @@ export function DonutChart({ segments, centerLabel, centerSub, size = 200 }) {
   }
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+    <svg viewBox={`0 0 ${size} ${size}`} style={{ width: size, height: size, maxWidth: '100%', flexShrink: 0 }}>
       {slices.map((s, i) => (
         <path key={i} d={arcPath(s.a1, s.a2)} fill={s.color} style={{ transition: 'opacity .15s' }}>
           <title>{s.label}: R{s.value.toFixed(0)} ({Math.round((s.value / total) * 100)}%)</title>
