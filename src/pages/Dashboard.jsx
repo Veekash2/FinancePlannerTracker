@@ -1,38 +1,18 @@
-import { useEffect, useState } from 'react';
-import { api } from '../storage';
-
-const CATEGORY_COLORS = {
-  Food: '#f59e0b',
-  Transport: '#3b82f6',
-  Entertainment: '#ec4899',
-  Shopping: '#8b5cf6',
-  Bills: '#ef4444',
-  Health: '#22c55e',
-  Other: '#6366f1',
-  Salary: '#22c55e',
-  Freelance: '#06b6d4',
-};
-
-const CATEGORY_ICONS = {
-  Food: '🍔', Transport: '🚗', Entertainment: '🎬', Shopping: '🛍️',
-  Bills: '📄', Health: '💊', Other: '📦', Salary: '💼', Freelance: '💻',
-};
-
-function fmt(n) {
-  return new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n);
-}
+import { useEffect, useState } from 'react'
+import { api } from '../storage'
+import { CATEGORY_COLORS, CATEGORY_ICONS, fmt } from '../utils/format'
 
 export default function Dashboard() {
-  const [summary, setSummary] = useState(null);
-  const [transactions, setTransactions] = useState([]);
+  const [summary, setSummary] = useState(null)
+  const [transactions, setTransactions] = useState([])
 
   useEffect(() => {
-    api.getSummary().then(setSummary);
-    api.getTransactions().then(d => setTransactions(d.slice(0, 8)));
-  }, []);
+    api.getSummary().then(setSummary)
+    api.getTransactions().then(d => setTransactions(d.slice(0, 8)))
+  }, [])
 
-  const cats = summary?.spendingByCategory ?? {};
-  const maxCat = Math.max(...Object.values(cats), 1);
+  const cats = summary?.spendingByCategory ?? {}
+  const maxCat = Math.max(...Object.values(cats), 1)
 
   return (
     <div>
@@ -113,7 +93,7 @@ export default function Dashboard() {
                     <div className="txn-meta">{t.date}</div>
                   </div>
                   <div className={`txn-amount ${t.type}`}>
-                    {t.type === 'expense' ? '-' : '+'}{fmt(t.amount)}
+                    {t.type === 'expense' ? '-' : '+'}{fmt(t.amount, 2)}
                   </div>
                 </div>
               ))}
@@ -122,5 +102,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );
+  )
 }

@@ -325,3 +325,47 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 
 .divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Edit icon button */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted);
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.btn-icon:hover { background: var(--surface2); color: var(--accent); }
+
+/* Profile page */
+.profile-user-card {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 24px 28px;
+  margin-bottom: 16px;
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.profile-avatar-fallback {
+  background: var(--accent-glow);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.profile-name { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.profile-email { color: var(--muted); font-size: 14px; }

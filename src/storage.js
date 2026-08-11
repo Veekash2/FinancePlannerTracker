@@ -8,7 +8,7 @@ function check(error) {
 }
 
 export const api = {
-  // ── Transactions ─────────────────────────────────────────────────────
+  // ── Transactions ──────────────────────────────────────────────────────
   async getTransactions() {
     const { data, error } = await supabase
       .from('transactions')
@@ -27,6 +27,16 @@ export const api = {
       .single()
     check(error)
     return data
+  },
+
+  async updateTransaction(id, body) {
+    const { error } = await supabase
+      .from('transactions')
+      .update(body)
+      .eq('id', id)
+      .eq('user_email', _userEmail)
+    check(error)
+    return { ok: true }
   },
 
   async deleteTransaction(id) {
@@ -99,6 +109,16 @@ export const api = {
       .single()
     check(error)
     return data
+  },
+
+  async updateSubscription(id, body) {
+    const { error } = await supabase
+      .from('subscriptions')
+      .update(body)
+      .eq('id', id)
+      .eq('user_email', _userEmail)
+    check(error)
+    return { ok: true }
   },
 
   async deleteSubscription(id) {
