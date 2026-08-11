@@ -5,11 +5,13 @@ import Goals from './pages/Goals'
 import Subscriptions from './pages/Subscriptions'
 import Profile from './pages/Profile'
 import AIAssistant from './pages/AIAssistant'
+import Accounts from './pages/Accounts'
 import Login from './pages/Login'
 import { useAuth } from './context/AuthContext'
 
 const PAGES = [
   { id: 'dashboard',    label: 'Overview',      icon: '📊' },
+  { id: 'accounts',     label: 'Accounts',      icon: '🏦' },
   { id: 'transactions', label: 'Transactions',  icon: '💳' },
   { id: 'goals',        label: 'Goals',         icon: '🎯' },
   { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
@@ -45,6 +47,7 @@ export default function App() {
 
   const renderPage = () => {
     if (page === 'dashboard')     return <Dashboard />
+    if (page === 'accounts')      return <Accounts />
     if (page === 'transactions')  return <Transactions />
     if (page === 'goals')         return <Goals />
     if (page === 'subscriptions') return <Subscriptions />

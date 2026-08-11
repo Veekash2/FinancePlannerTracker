@@ -1,15 +1,20 @@
 import { useEffect, useState } from 'react'
 import { api } from '../storage'
 import { CATEGORY_COLORS, CATEGORY_ICONS, fmt } from '../utils/format'
+import { getAccounts, ACCOUNT_TYPES } from '../utils/accounts'
+import { useAuth } from '../context/AuthContext'
 
 export default function Dashboard() {
+  const { user } = useAuth()
   const [summary, setSummary] = useState(null)
   const [transactions, setTransactions] = useState([])
+  const [accounts, setAccounts] = useState([])
 
   useEffect(() => {
     api.getSummary().then(setSummary)
     api.getTransactions().then(d => setTransactions(d.slice(0, 8)))
-  }, [])
+    setAccounts(getAccounts(user?.email ?? ''))
+  }, [user?.email])
 
   const cats = summary?.spendingByCategory ?? {}
   const maxCat = Math.max(...Object.values(cats), 1)
@@ -39,6 +44,38 @@ export default function Dashboard() {
           <div className="stat-value red">{summary ? fmt(summary.expenses) : '—'}</div>
         </div>
       </div>
+
+      {/* Accounts widget */}
+      {accounts.length > 0 && (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <div className="card-title" style={{ marginBottom: 12 }}>My Accounts</div>
+          <div className="dash-accounts-grid">
+            {accounts.map(acc => {
+              const meta = ACCOUNT_TYPES[acc.type] ?? ACCOUNT_TYPES.other
+              return (
+                <div className="dash-account-item" key={acc.id}>
+                  <div className="dash-acc-icon" style={{ background: `${meta.color}22`, color: meta.color }}>{meta.icon}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="dash-acc-name">{acc.name}</div>
+                    <div className="dash-acc-type">{meta.label}</div>
+                  </div>
+                  <div className={`dash-acc-bal ${acc.type === 'credit' ? 'red' : 'green'}`}>{fmt(acc.balance ?? 0)}</div>
+                </div>
+              )
+            })}
+          </div>
+          {(() => {
+            const assets = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + (a.balance || 0), 0)
+            const debt   = accounts.filter(a => a.type === 'credit').reduce((s, a) => s + (a.balance || 0), 0)
+            return (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Net worth</span>
+                <span style={{ fontWeight: 700, color: (assets - debt) >= 0 ? 'var(--green)' : 'var(--red)' }}>{fmt(assets - debt)}</span>
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
         <div className="card">

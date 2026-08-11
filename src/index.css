@@ -588,3 +588,85 @@ input, select, textarea { font: inherit; color: inherit; }
   justify-content: center;
   flex-shrink: 0;
 }
+
+/* ── Accounts page ────────────────────────────────────────────────────────── */
+.accounts-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.acc-summary-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+}
+
+.acc-summary-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.acc-summary-value { font-size: 22px; font-weight: 800; }
+
+.accounts-list { display: flex; flex-direction: column; gap: 10px; }
+
+.account-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  transition: border-color .15s;
+}
+.account-card:hover { border-color: var(--accent); }
+
+.account-card-left { display: flex; align-items: center; gap: 14px; }
+.account-card-right { display: flex; align-items: center; gap: 14px; }
+
+.account-icon {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.account-name { font-size: 15px; font-weight: 600; }
+.account-type { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.account-balance { font-size: 18px; font-weight: 700; }
+.account-edit-hint { font-size: 12px; color: var(--muted); opacity: 0; transition: opacity .15s; }
+.account-card:hover .account-edit-hint { opacity: 1; }
+.account-balance-edit { display: flex; align-items: center; gap: 6px; }
+.account-balance-input {
+  width: 120px;
+  background: var(--surface2);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.account-actions { display: flex; gap: 6px; }
+
+/* Dashboard accounts widget */
+.dash-accounts-grid { display: flex; flex-direction: column; gap: 8px; }
+.dash-account-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+}
+.dash-acc-icon {
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.dash-acc-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-acc-type { font-size: 11px; color: var(--muted); }
+.dash-acc-bal { font-size: 14px; font-weight: 700; white-space: nowrap; }

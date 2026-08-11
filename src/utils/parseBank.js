@@ -68,6 +68,35 @@ function findColIndex(headers, candidates) {
   return -1
 }
 
+// Extract account metadata from FNB-style header lines before the data starts
+export function extractAccountMeta(text) {
+  const lines = text.split(/\r?\n/).slice(0, 20)
+  const meta = {}
+  for (const line of lines) {
+    const lower = line.toLowerCase()
+    if (lower.includes('account no') || lower.includes('account number')) {
+      const val = line.split(',')[1]?.replace(/['"]/g, '').trim()
+      if (val) meta.accountNumber = val
+    }
+    if (lower.includes('account name')) {
+      const val = line.split(',')[1]?.replace(/['"]/g, '').trim()
+      if (val) meta.accountName = val
+    }
+    if (lower.includes('closing balance') || lower.includes('balance:')) {
+      const cols = line.split(',')
+      for (const col of cols) {
+        const n = parseFloat(col.replace(/['"R$,\s]/g, ''))
+        if (!isNaN(n) && n !== 0) { meta.closingBalance = n; break }
+      }
+    }
+    if (lower.includes('product') || lower.includes('account type')) {
+      const val = line.split(',')[1]?.replace(/['"]/g, '').trim()
+      if (val && val.length < 40) meta.productType = val
+    }
+  }
+  return meta
+}
+
 export function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim())
 

@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react'
 import { api } from '../storage'
 import { analyzeReceipt, getSpendingInsights, getBudgetPlan, bulkCategorize } from '../utils/gemini'
-import { parseCSV } from '../utils/parseBank'
+import { parseCSV, extractAccountMeta } from '../utils/parseBank'
 import { fmt } from '../utils/format'
+import { getAccounts, updateAccount, addAccount, ACCOUNT_TYPES } from '../utils/accounts'
+import { useAuth } from '../context/AuthContext'
 
 const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Salary', 'Freelance', 'Other']
 const TABS = ['Bank Import', 'Receipt Scanner', 'Spending Insights', 'Budget Advisor']
@@ -257,22 +259,34 @@ function ReceiptScanner() {
 
 // ── Bank Import ──────────────────────────────────────────────────────────────
 function BankImport() {
+  const { user } = useAuth()
+  const email = user?.email ?? ''
+
   const inputRef = useRef(null)
-  const [items, setItems]         = useState([])
-  const [error, setError]         = useState(null)
+  const [items, setItems]               = useState([])
+  const [error, setError]               = useState(null)
   const [categorizing, setCategorizing] = useState(false)
-  const [saving, setSaving]       = useState(false)
-  const [saved, setSaved]         = useState(0)
-  const [fileName, setFileName]   = useState(null)
-  const [filter, setFilter]       = useState('all')
+  const [saving, setSaving]             = useState(false)
+  const [saved, setSaved]               = useState(0)
+  const [fileName, setFileName]         = useState(null)
+  const [filter, setFilter]             = useState('all')
+  const [csvMeta, setCsvMeta]           = useState(null)     // account info from CSV header
+  const [balanceAccId, setBalanceAccId] = useState('')       // which account to update
+  const [balanceSaved, setBalanceSaved] = useState(false)
+
+  const accounts = getAccounts(email)
 
   const handleFile = async (f) => {
     if (!f) return
     setError(null)
     setSaved(0)
+    setBalanceSaved(false)
+    setCsvMeta(null)
     setFileName(f.name)
     try {
       const text = await f.text()
+      const meta = extractAccountMeta(text)
+      if (meta.closingBalance !== undefined) setCsvMeta(meta)
       const parsed = parseCSV(text)
       setItems(parsed.map((t, i) => ({ ...t, id: i })))
       // AI-categorize all at once
@@ -309,6 +323,20 @@ function BankImport() {
       setSaving(false) }
   }
 
+  const handleApplyBalance = () => {
+    if (!balanceAccId || !csvMeta?.closingBalance) return
+    if (balanceAccId === '__new__') {
+      addAccount(email, {
+        name: csvMeta.accountName || 'FNB Account',
+        type: 'cheque',
+        balance: csvMeta.closingBalance,
+      })
+    } else {
+      updateAccount(email, balanceAccId, { balance: csvMeta.closingBalance })
+    }
+    setBalanceSaved(true)
+  }
+
   const visible = filter === 'all' ? items : items.filter(t => t.type === filter)
   const included = items.filter(t => t.include).length
 
@@ -325,10 +353,39 @@ function BankImport() {
       </div>
 
       {saved > 0 && (
-        <div className="ai-success">
-          ✓ {saved} transactions imported successfully!
-          <button className="btn-text" onClick={() => setSaved(0)}>Import more</button>
-        </div>
+        <>
+          <div className="ai-success">
+            ✓ {saved} transactions imported successfully!
+            <button className="btn-text" onClick={() => { setSaved(0); setCsvMeta(null); setBalanceSaved(false) }}>Import more</button>
+          </div>
+
+          {/* Account balance update prompt */}
+          {csvMeta?.closingBalance !== undefined && !balanceSaved && (
+            <div className="card" style={{ marginTop: 12, borderColor: 'rgba(99,102,241,.4)', background: 'rgba(99,102,241,.07)' }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 6 }}>
+                💳 Closing balance detected: <span style={{ color: 'var(--green)' }}>{fmt(csvMeta.closingBalance)}</span>
+                {csvMeta.accountName ? ` — ${csvMeta.accountName}` : ''}
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 10 }}>Update an account balance with this figure?</div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select className="form-input" style={{ flex: 1, minWidth: 160 }}
+                  value={balanceAccId} onChange={e => setBalanceAccId(e.target.value)}>
+                  <option value="">Select account…</option>
+                  {accounts.map(a => {
+                    const meta = ACCOUNT_TYPES[a.type] ?? ACCOUNT_TYPES.other
+                    return <option key={a.id} value={a.id}>{meta.icon} {a.name}</option>
+                  })}
+                  <option value="__new__">+ Create new account from this statement</option>
+                </select>
+                <button className="btn btn-primary" onClick={handleApplyBalance} disabled={!balanceAccId}>Apply</button>
+                <button className="btn" onClick={() => setBalanceSaved(true)}>Skip</button>
+              </div>
+            </div>
+          )}
+          {balanceSaved && csvMeta?.closingBalance !== undefined && (
+            <div style={{ fontSize: 13, color: 'var(--green)', marginTop: 8 }}>✓ Account balance updated to {fmt(csvMeta.closingBalance)}</div>
+          )}
+        </>
       )}
 
       {saved === 0 && (
