@@ -3,6 +3,8 @@ import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Goals from './pages/Goals';
 import Subscriptions from './pages/Subscriptions';
+import Login from './pages/Login';
+import { useAuth } from './context/AuthContext';
 
 const PAGES = [
   { id: 'dashboard', label: 'Overview', icon: '📊' },
@@ -25,7 +27,17 @@ function NavItem({ page, active, onClick }) {
 }
 
 export default function App() {
+  const { isAuthed, loading, user, logout } = useAuth();
   const [page, setPage] = useState('dashboard');
+
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: '#0f0f13', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 32, height: 32, border: '3px solid rgba(99,102,241,.2)', borderTopColor: '#6366f1', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+
+  if (!isAuthed) return <Login />;
 
   const renderPage = () => {
     if (page === 'dashboard') return <Dashboard />;
@@ -44,6 +56,18 @@ export default function App() {
             <NavItem key={p.id} page={p} active={page === p.id} onClick={setPage} />
           ))}
         </nav>
+        <div style={{ padding: '16px 10px 0', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
+          {user?.picture && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', marginBottom: 4 }}>
+              <img src={user.picture} alt="" style={{ width: 28, height: 28, borderRadius: '50%', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name || user.email}</span>
+            </div>
+          )}
+          <a href="#" className="nav-item" onClick={e => { e.preventDefault(); logout(); }} style={{ color: 'var(--muted)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
+          </a>
+        </div>
       </aside>
 
       {/* Page content */}
