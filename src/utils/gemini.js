@@ -147,3 +147,19 @@ export async function suggestCategory(description) {
   const text = await generate(parts)
   return text.trim().split('\n')[0].trim()
 }
+
+// ── Bulk categorize (for CSV import) ─────────────────────────────────────────
+export async function bulkCategorize(descriptions) {
+  const numbered = descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n')
+  const parts = [{
+    text: `Categorize each of these bank transactions. Reply with ONLY a JSON array of strings (same order, same count):
+["Category1", "Category2", ...]
+
+Valid categories: Food, Transport, Entertainment, Shopping, Bills, Health, Salary, Freelance, Other
+
+Transactions:
+${numbered}`,
+  }]
+  const text = await generate(parts)
+  return parseJSON(text)
+}

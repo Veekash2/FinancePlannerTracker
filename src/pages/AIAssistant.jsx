@@ -1,10 +1,11 @@
 import { useRef, useState } from 'react'
 import { api } from '../storage'
-import { analyzeReceipt, getSpendingInsights, getBudgetPlan } from '../utils/gemini'
+import { analyzeReceipt, getSpendingInsights, getBudgetPlan, bulkCategorize } from '../utils/gemini'
+import { parseCSV } from '../utils/parseBank'
 import { fmt } from '../utils/format'
 
-const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Other']
-const TABS = ['Receipt Scanner', 'Spending Insights', 'Budget Advisor']
+const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Salary', 'Freelance', 'Other']
+const TABS = ['Bank Import', 'Receipt Scanner', 'Spending Insights', 'Budget Advisor']
 
 // ── Shared ──────────────────────────────────────────────────────────────────
 function Spinner() {
@@ -254,6 +255,175 @@ function ReceiptScanner() {
   )
 }
 
+// ── Bank Import ──────────────────────────────────────────────────────────────
+function BankImport() {
+  const inputRef = useRef(null)
+  const [items, setItems]         = useState([])
+  const [error, setError]         = useState(null)
+  const [categorizing, setCategorizing] = useState(false)
+  const [saving, setSaving]       = useState(false)
+  const [saved, setSaved]         = useState(0)
+  const [fileName, setFileName]   = useState(null)
+  const [filter, setFilter]       = useState('all')
+
+  const handleFile = async (f) => {
+    if (!f) return
+    setError(null)
+    setSaved(0)
+    setFileName(f.name)
+    try {
+      const text = await f.text()
+      const parsed = parseCSV(text)
+      setItems(parsed.map((t, i) => ({ ...t, id: i })))
+      // AI-categorize all at once
+      setCategorizing(true)
+      try {
+        const descs = parsed.map(t => t.description)
+        const cats  = await bulkCategorize(descs)
+        setItems(prev => prev.map((t, i) => ({ ...t, category: cats[i] ?? t.category })))
+      } catch { /* categorization failed — keep defaults */ }
+      finally { setCategorizing(false) }
+    } catch (e) {
+      setError(e.message)
+      setItems([])
+    }
+  }
+
+  const update = (id, field, value) =>
+    setItems(prev => prev.map(t => t.id === id ? { ...t, [field]: value } : t))
+
+  const handleSave = async () => {
+    const toSave = items.filter(t => t.include)
+    if (!toSave.length) return
+    setSaving(true)
+    try {
+      await Promise.all(toSave.map(t =>
+        api.addTransaction({ description: t.description, amount: parseFloat(t.amount), category: t.category, type: t.type, date: t.date })
+      ))
+      setSaved(toSave.length)
+      setItems([])
+      setFileName(null)
+    } catch (e) {
+      setError('Failed to save. Try again.')
+    } finally {
+      setSaving(false) }
+  }
+
+  const visible = filter === 'all' ? items : items.filter(t => t.type === filter)
+  const included = items.filter(t => t.include).length
+
+  return (
+    <div>
+      <p style={{ color: 'var(--muted)', fontSize: 14, marginBottom: 8, lineHeight: 1.6 }}>
+        Export your transactions from <strong style={{ color: 'var(--text)' }}>FNB Online Banking</strong> and upload the CSV here. Gemini will auto-categorize everything — then verify and bulk import.
+      </p>
+
+      <div className="bank-steps">
+        <div className="bank-step"><span className="bank-step-num">1</span> Log in to <strong>fnb.co.za</strong></div>
+        <div className="bank-step"><span className="bank-step-num">2</span> Accounts → Statement → <strong>Download CSV</strong></div>
+        <div className="bank-step"><span className="bank-step-num">3</span> Upload the file below</div>
+      </div>
+
+      {saved > 0 && (
+        <div className="ai-success">
+          ✓ {saved} transactions imported successfully!
+          <button className="btn-text" onClick={() => setSaved(0)}>Import more</button>
+        </div>
+      )}
+
+      {saved === 0 && (
+        <>
+          <div
+            className={`drop-zone ${fileName ? 'drop-zone--has-file' : ''}`}
+            style={{ marginBottom: 12 }}
+            onClick={() => inputRef.current?.click()}
+            onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}
+            onDragOver={e => e.preventDefault()}
+          >
+            <input ref={inputRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }}
+              onChange={e => handleFile(e.target.files[0])} />
+            {fileName ? (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 28, marginBottom: 6 }}>📊</div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{fileName}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{items.length} transactions found · Click to change</div>
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--muted)' }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>📂</div>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', marginBottom: 4 }}>Drop your bank CSV or click to browse</div>
+                <div style={{ fontSize: 12 }}>Works with FNB, Capitec, Standard Bank, Absa and most bank exports</div>
+              </div>
+            )}
+          </div>
+
+          {error && <div className="ai-error">{error}</div>}
+
+          {categorizing && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--muted)', fontSize: 13, marginBottom: 14 }}>
+              <div className="ai-spinner" style={{ borderTopColor: 'var(--accent)' }} />
+              AI is categorizing {items.length} transactions…
+            </div>
+          )}
+
+          {items.length > 0 && (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ fontSize: 14, fontWeight: 600 }}>
+                  {included} of {items.length} selected
+                  <button className="btn-text" style={{ marginLeft: 12 }}
+                    onClick={() => setItems(p => p.map(t => ({ ...t, include: true })))}>All</button>
+                  <button className="btn-text" style={{ marginLeft: 8 }}
+                    onClick={() => setItems(p => p.map(t => ({ ...t, include: false })))}>None</button>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {['all', 'expense', 'income'].map(f => (
+                    <button key={f} onClick={() => setFilter(f)} style={{
+                      padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                      background: filter === f ? 'var(--accent-glow)' : 'var(--surface2)',
+                      border: '1px solid var(--border)',
+                      color: filter === f ? 'var(--accent)' : 'var(--muted)',
+                    }}>{f.charAt(0).toUpperCase() + f.slice(1)}</button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 480, overflowY: 'auto', marginBottom: 14 }}>
+                {visible.map(t => (
+                  <div key={t.id} className={`verify-item ${!t.include ? 'verify-item--excluded' : ''}`} style={{ padding: '10px 12px' }}>
+                    <input type="checkbox" checked={t.include} className="verify-checkbox"
+                      onChange={e => update(t.id, 'include', e.target.checked)} />
+                    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: 8, alignItems: 'center', minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.description}>
+                        {t.description}
+                      </div>
+                      <select className="form-input" value={t.category} style={{ fontSize: 12, padding: '4px 8px', width: 'auto' }}
+                        onChange={e => update(t.id, 'category', e.target.value)}>
+                        {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      <div style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', color: t.type === 'income' ? 'var(--green)' : 'var(--red)' }}>
+                        {t.type === 'income' ? '+' : '-'}{fmt(t.amount, 2)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{t.date}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {error && <div className="ai-error" style={{ marginBottom: 10 }}>{error}</div>}
+
+              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}
+                onClick={handleSave} disabled={saving || included === 0}>
+                {saving ? 'Importing…' : `Import ${included} Transaction${included !== 1 ? 's' : ''} →`}
+              </button>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 // ── Spending Insights ────────────────────────────────────────────────────────
 function SpendingInsights() {
   const [loading, setLoading]     = useState(false)
@@ -398,15 +568,16 @@ export default function AIAssistant() {
             className={`ai-tab ${tab === i ? 'active' : ''}`}
             onClick={() => setTab(i)}
           >
-            {['📎', '💡', '📋'][i]} {t}
+            {['🏦', '📎', '💡', '📋'][i]} {t}
           </button>
         ))}
       </div>
 
       <div className="card">
-        {tab === 0 && <ReceiptScanner />}
-        {tab === 1 && <SpendingInsights />}
-        {tab === 2 && <BudgetAdvisor />}
+        {tab === 0 && <BankImport />}
+        {tab === 1 && <ReceiptScanner />}
+        {tab === 2 && <SpendingInsights />}
+        {tab === 3 && <BudgetAdvisor />}
       </div>
     </div>
   )
