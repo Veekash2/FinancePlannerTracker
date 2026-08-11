@@ -371,6 +371,9 @@ input, select, textarea { font: inherit; color: inherit; }
 .section { margin-bottom: 20px; }
 
 @media (max-width: 700px) {
+  /* Prevent iOS Safari from zooming in when an input is focused */
+  input, select, textarea { font-size: 16px !important; }
+
   .sidebar { display: none; }
   .mobile-header { display: flex; }
   .mobile-nav { display: block; }
