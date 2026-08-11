@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { api } from '../storage'
 import { CATEGORY_COLORS, CATEGORY_ICONS, fmt, fmtDate } from '../utils/format'
 import { suggestCategory } from '../utils/gemini'
+import { getAccounts, ACCOUNT_TYPES } from '../utils/accounts'
+import { setTxnAccount, removeTxnAccount, getAllTxnAccounts } from '../utils/txnAccounts'
+import { useAuth } from '../context/AuthContext'
 
 const CATEGORIES = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Salary', 'Freelance', 'Other']
 const INCOME_CATS  = ['Salary', 'Freelance', 'Other']
@@ -9,7 +12,7 @@ const EXPENSE_CATS = CATEGORIES.filter(c => c !== 'Salary' && c !== 'Freelance')
 
 const emptyForm = {
   description: '', amount: '', category: 'Food', type: 'expense',
-  date: new Date().toISOString().slice(0, 10),
+  date: new Date().toISOString().slice(0, 10), accountId: '',
 }
 
 function PencilIcon() {
@@ -22,7 +25,12 @@ function PencilIcon() {
 }
 
 export default function Transactions() {
+  const { user } = useAuth()
+  const email = user?.email ?? ''
+
   const [txns, setTxns]           = useState([])
+  const [accounts, setAccounts]   = useState([])
+  const [txnAccMap, setTxnAccMap] = useState({})
   const [showModal, setShowModal] = useState(false)
   const [editTxn, setEditTxn]     = useState(null)
   const [form, setForm]           = useState(emptyForm)
@@ -30,11 +38,19 @@ export default function Transactions() {
   const [suggesting, setSuggesting] = useState(false)
 
   const load = () => api.getTransactions().then(setTxns)
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    setAccounts(getAccounts(email))
+    setTxnAccMap(getAllTxnAccounts(email))
+  }, [email])
 
   const openAdd  = () => { setForm(emptyForm); setEditTxn(null); setShowModal(true) }
   const openEdit = (t) => {
-    setForm({ description: t.description, amount: String(t.amount), category: t.category, type: t.type, date: t.date })
+    setForm({
+      description: t.description, amount: String(t.amount),
+      category: t.category, type: t.type, date: t.date,
+      accountId: txnAccMap[t.id] ?? '',
+    })
     setEditTxn(t)
     setShowModal(true)
   }
@@ -61,8 +77,15 @@ export default function Transactions() {
       }
     }
 
-    if (editTxn) await api.updateTransaction(editTxn.id, body)
-    else         await api.addTransaction(body)
+    if (editTxn) {
+      await api.updateTransaction(editTxn.id, body)
+      if (form.accountId) setTxnAccount(email, editTxn.id, form.accountId)
+      else removeTxnAccount(email, editTxn.id)
+    } else {
+      const result = await api.addTransaction(body)
+      if (form.accountId && result?.id) setTxnAccount(email, result.id, form.accountId)
+    }
+    setTxnAccMap(getAllTxnAccounts(email))
     closeModal()
     load()
   }
@@ -137,7 +160,19 @@ export default function Transactions() {
                     </div>
                     <div className="txn-info">
                       <div className="txn-desc">{t.description}</div>
-                      <div className="txn-meta">{t.category}</div>
+                      <div className="txn-meta" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <span>{t.category}</span>
+                        {(() => {
+                          const accId = txnAccMap[t.id]
+                          const acc   = accId && accounts.find(a => a.id === accId)
+                          const meta  = acc && (ACCOUNT_TYPES[acc.type] ?? ACCOUNT_TYPES.other)
+                          return acc ? (
+                            <span style={{ fontSize: 10, background: `${meta.color}22`, color: meta.color, padding: '1px 6px', borderRadius: 4, fontWeight: 600 }}>
+                              {meta.icon} {acc.name}
+                            </span>
+                          ) : null
+                        })()}
+                      </div>
                     </div>
                     <div className={`txn-amount ${t.type}`}>
                       {t.type === 'expense' ? '-' : '+'}{fmt(t.amount, 2)}
@@ -209,12 +244,27 @@ export default function Transactions() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Category</label>
-                <select className="form-input" value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                  {cats.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select className="form-input" value={form.category}
+                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+                    {cats.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {accounts.length > 0 && (
+                  <div className="form-group">
+                    <label className="form-label">Account</label>
+                    <select className="form-input" value={form.accountId}
+                      onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
+                      <option value="">— None —</option>
+                      {accounts.map(a => {
+                        const meta = ACCOUNT_TYPES[a.type] ?? ACCOUNT_TYPES.other
+                        return <option key={a.id} value={a.id}>{meta.icon} {a.name}</option>
+                      })}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }}>

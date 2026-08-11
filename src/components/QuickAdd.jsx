@@ -1,21 +1,30 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { api } from '../storage'
 import { suggestCategory } from '../utils/gemini'
+import { getAccounts, ACCOUNT_TYPES } from '../utils/accounts'
+import { setTxnAccount } from '../utils/txnAccounts'
+import { useAuth } from '../context/AuthContext'
 
 const EXPENSE_CATS = ['Food', 'Transport', 'Entertainment', 'Shopping', 'Bills', 'Health', 'Other']
 const INCOME_CATS  = ['Salary', 'Freelance', 'Other']
 
 const fresh = () => ({
   description: '', amount: '', type: 'expense', category: 'Food',
-  date: new Date().toISOString().slice(0, 10),
+  date: new Date().toISOString().slice(0, 10), accountId: '',
 })
 
 export default function QuickAdd({ onSaved }) {
+  const { user } = useAuth()
+  const email = user?.email ?? ''
+
   const [open, setOpen]         = useState(false)
   const [form, setForm]         = useState(fresh())
+  const [accounts, setAccounts] = useState([])
   const [saving, setSaving]     = useState(false)
   const [suggesting, setSuggesting] = useState(false)
   const [error, setError]       = useState(null)
+
+  useEffect(() => { if (open) setAccounts(getAccounts(email)) }, [open, email])
 
   const close = () => { setOpen(false); setForm(fresh()); setError(null) }
 
@@ -38,7 +47,8 @@ export default function QuickAdd({ onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      await api.addTransaction({ ...form, amount: parseFloat(form.amount) })
+      const result = await api.addTransaction({ ...form, amount: parseFloat(form.amount) })
+      if (form.accountId && result?.id) setTxnAccount(email, result.id, form.accountId)
       close()
       onSaved?.()
     } catch (err) {
@@ -117,6 +127,19 @@ export default function QuickAdd({ onSaved }) {
                     onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
                 </div>
               </div>
+              {accounts.length > 0 && (
+                <div className="form-group" style={{ marginBottom: 0, marginTop: 8 }}>
+                  <label className="form-label">Account (optional)</label>
+                  <select className="form-input" value={form.accountId}
+                    onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
+                    <option value="">— None —</option>
+                    {accounts.map(a => {
+                      const meta = ACCOUNT_TYPES[a.type] ?? ACCOUNT_TYPES.other
+                      return <option key={a.id} value={a.id}>{meta.icon} {a.name}</option>
+                    })}
+                  </select>
+                </div>
+              )}
 
               {error && <div className="ai-error" style={{ marginTop: 10 }}>{error}</div>}
 

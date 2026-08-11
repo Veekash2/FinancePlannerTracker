@@ -885,3 +885,57 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* ── Heatmap ───────────────────────────────────────────────────────────────── */
 /* cells are inline divs — no additional classes needed beyond inline styles */
+
+/* ── DonutChart + legend ───────────────────────────────────────────────────── */
+.chart-donut-wrap {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.chart-legend {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.chart-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.chart-legend-label {
+  flex: 1;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chart-legend-value {
+  font-weight: 700;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+/* ── Editable account row ──────────────────────────────────────────────────── */
+.dash-account-item--editable {
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background .15s;
+}
+.dash-account-item--editable:hover {
+  background: var(--surface2);
+}
