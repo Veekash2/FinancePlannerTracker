@@ -12,4 +12,4 @@ export const GEMINI_MODEL   = 'gemini-2.5-flash';
 // Claude fallback — set VITE_ANTHROPIC_API_KEY in GitHub Secrets or .env.local
 export const ANTHROPIC_API_KEY    = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
 export const CLAUDE_FALLBACK_MODEL = 'claude-haiku-4-5-20251001';
-export const CLAUDE_MAX_TOKENS     = 4096;
+export const CLAUDE_MAX_TOKENS     = 8192;
