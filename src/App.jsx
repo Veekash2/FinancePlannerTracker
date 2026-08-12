@@ -10,7 +10,7 @@ import Budget from './pages/Budget'
 import Statement from './pages/Statement'
 import Login from './pages/Login'
 import QuickAdd from './components/QuickAdd'
-import AlertBanner from './components/AlertBanner'
+
 import { useAuth } from './context/AuthContext'
 
 // Desktop sidebar
@@ -118,9 +118,6 @@ export default function App() {
           </button>
         </div>
       </header>
-
-      {/* Subscription due-soon alerts */}
-      <AlertBanner />
 
       <main className="main">
         {renderPage()}
