@@ -188,3 +188,93 @@ export function exportFinancialPDF({ transactions, goals, subscriptions, summary
 
   doc.save(`financial-report-${now.toISOString().slice(0, 10)}.pdf`)
 }
+
+export function exportCashFlowPDF({ monthName, totalIncome, totalExpenses, cashFlow, passiveIncome, netWorth, totalAssets, totalLiabilities, incomeRows, expenseRows, savingsGoals }) {
+  const doc  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+  const now  = new Date()
+  const W    = doc.internal.pageSize.getWidth()
+
+  // Header
+  doc.setFillColor(...ACCENT)
+  doc.rect(0, 0, W, 36, 'F')
+  doc.setTextColor(255, 255, 255)
+  doc.setFontSize(22)
+  doc.setFont('helvetica', 'bold')
+  doc.text('Spendwise', 14, 16)
+  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal')
+  doc.text('Cash Flow Statement', 14, 24)
+  doc.text(`${monthName}  ·  Generated ${now.toLocaleDateString('en-ZA')}`, 14, 30)
+  doc.setTextColor(0, 0, 0)
+
+  // Summary tiles
+  let y = 44
+  const tiles = [
+    { label: 'Total Income',    value: fmtR(totalIncome),   color: [34, 197, 94] },
+    { label: 'Total Expenses',  value: fmtR(totalExpenses), color: [239, 68, 68] },
+    { label: 'Passive Income',  value: fmtR(passiveIncome), color: [6, 182, 212] },
+    { label: 'Cash Flow',       value: fmtR(cashFlow),      color: cashFlow >= 0 ? [34, 197, 94] : [239, 68, 68] },
+  ]
+  const tileW = (W - 28 - 9) / 4
+  tiles.forEach((t, i) => {
+    const x = 14 + i * (tileW + 3)
+    doc.setFillColor(245, 245, 250)
+    doc.roundedRect(x, y, tileW, 18, 2, 2, 'F')
+    doc.setFontSize(7.5)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(...[130, 130, 160])
+    doc.text(t.label, x + 3, y + 6)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(...t.color)
+    doc.text(t.value, x + 3, y + 14)
+  })
+  doc.setTextColor(0, 0, 0)
+  y += 24
+
+  // Income table
+  autoTable(doc, {
+    startY: y,
+    head: [['INCOME', 'Amount']],
+    body: [
+      ...Object.entries(incomeRows).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => [cat, fmtR(amt)]),
+      [{ content: 'Total Income', styles: { fontStyle: 'bold' } }, { content: fmtR(totalIncome), styles: { fontStyle: 'bold', textColor: [34, 197, 94] } }],
+    ],
+    theme: 'striped',
+    headStyles: { fillColor: [34, 197, 94], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+    alternateRowStyles: { fillColor: [240, 253, 244] },
+    styles: { fontSize: 9, cellPadding: 2.5 },
+    columnStyles: { 1: { halign: 'right', cellWidth: 40 } },
+  })
+  y = doc.lastAutoTable.finalY + 6
+
+  // Expenses table
+  autoTable(doc, {
+    startY: y,
+    head: [['EXPENSES', 'Amount']],
+    body: [
+      ...Object.entries(expenseRows).sort((a, b) => b[1] - a[1]).map(([cat, amt]) => [cat, fmtR(amt)]),
+      [{ content: 'Total Expenses', styles: { fontStyle: 'bold' } }, { content: fmtR(totalExpenses), styles: { fontStyle: 'bold', textColor: [239, 68, 68] } }],
+    ],
+    theme: 'striped',
+    headStyles: { fillColor: [239, 68, 68], textColor: 255, fontStyle: 'bold', fontSize: 10 },
+    alternateRowStyles: { fillColor: [254, 242, 242] },
+    styles: { fontSize: 9, cellPadding: 2.5 },
+    columnStyles: { 1: { halign: 'right', cellWidth: 40 } },
+  })
+  y = doc.lastAutoTable.finalY + 6
+
+  // Net worth footer
+  autoTable(doc, {
+    startY: y,
+    body: [
+      ['Net Worth (Assets − Liabilities)', fmtR(netWorth)],
+      ['Monthly Cash Flow', fmtR(cashFlow)],
+    ],
+    theme: 'plain',
+    styles: { fontSize: 10, fontStyle: 'bold', cellPadding: 3 },
+    columnStyles: { 1: { halign: 'right', cellWidth: 50 } },
+  })
+
+  doc.save(`cashflow-${monthName.replace(' ', '-').toLowerCase()}.pdf`)
+}

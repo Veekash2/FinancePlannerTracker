@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { api } from '../storage'
 import { getAccounts } from '../utils/accounts'
 import { useAuth } from '../context/AuthContext'
+import { exportCashFlowPDF } from '../utils/exportPDF'
 
 const fmt = n =>
   new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR', maximumFractionDigits: 0 }).format(n)
@@ -112,6 +113,15 @@ export default function Statement() {
       <div className="page-header" style={{ marginBottom: 20 }}>
         <h1 className="page-title">Cash Flow Statement</h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="btn btn-ghost" style={{ fontSize: 13 }}
+            onClick={() => exportCashFlowPDF({
+              monthName: `${MONTH_NAMES[month]} ${year}`,
+              totalIncome, totalExpenses, cashFlow, passiveIncome, netWorth, totalAssets, totalLiabilities,
+              incomeRows, expenseRows,
+              savingsGoals: goals.map(g => ({ name: g.name, value: g.current_amount })),
+            })}>
+            ⬇ PDF
+          </button>
           <button className="btn btn-ghost" style={{ padding: '6px 10px' }} onClick={prevMonth}>‹</button>
           <span style={{ minWidth: 110, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>
             {MONTH_NAMES[month]} {year}

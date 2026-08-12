@@ -77,6 +77,20 @@ export default function Subscriptions() {
     load()
   }
 
+  const handleMarkPaid = async (sub) => {
+    const d = new Date(sub.next_billing_date + 'T12:00:00')
+    if (sub.billing_cycle === 'yearly')  d.setFullYear(d.getFullYear() + 1)
+    else if (sub.billing_cycle === 'weekly') d.setDate(d.getDate() + 7)
+    else d.setMonth(d.getMonth() + 1)
+    await api.updateSubscription(sub.id, { ...sub, next_billing_date: d.toISOString().slice(0, 10) })
+    load()
+  }
+
+  const handleDateChange = async (sub, newDate) => {
+    await api.updateSubscription(sub.id, { ...sub, next_billing_date: newDate })
+    load()
+  }
+
   // AI detection
   const handleDetect = async () => {
     setDetecting(true)
@@ -270,6 +284,15 @@ export default function Subscriptions() {
                       <div className="sub-cycle">{fmt(monthly)}/mo</div>
                     )}
                   </div>
+                  <input type="date" value={sub.next_billing_date || ''} className="form-input"
+                    style={{ padding: '3px 6px', fontSize: 12, height: 28, width: 130 }}
+                    onChange={e => handleDateChange(sub, e.target.value)} />
+                  <button title="Mark as paid — advances due date by one cycle"
+                    onClick={() => handleMarkPaid(sub)}
+                    style={{ padding: '3px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      border: '1px solid rgba(34,197,94,.4)', background: 'rgba(34,197,94,.1)', color: 'var(--green)', whiteSpace: 'nowrap' }}>
+                    ✓ Paid
+                  </button>
                   <button className="btn-icon" title="Edit" onClick={() => openEdit(sub)}><PencilIcon /></button>
                   <button className="btn btn-danger" style={{ padding: '4px 8px', fontSize: 12 }} onClick={() => handleDelete(sub.id)}>×</button>
                 </div>

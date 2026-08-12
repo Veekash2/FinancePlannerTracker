@@ -109,6 +109,29 @@ export default function Transactions() {
     load()
   }
 
+  const [deduping, setDeduping] = useState(false)
+  const duplicates = (() => {
+    const seen = {}
+    const dupes = []
+    for (const t of txns) {
+      const key = `${t.date}|${(t.description||'').trim().toLowerCase()}|${parseFloat(t.amount).toFixed(2)}|${t.type}`
+      if (seen[key]) dupes.push(t.id)
+      else seen[key] = true
+    }
+    return dupes
+  })()
+
+  const handleDedupe = async () => {
+    if (!duplicates.length) return
+    setDeduping(true)
+    try {
+      await Promise.all(duplicates.map(id => api.deleteTransaction(id)))
+      load()
+    } finally {
+      setDeduping(false)
+    }
+  }
+
   const handleAISuggest = async () => {
     if (!form.description.trim()) return
     setSuggesting(true)
@@ -140,6 +163,12 @@ export default function Transactions() {
       <div className="page-header">
         <h1 className="page-title">Transactions</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          {duplicates.length > 0 && (
+            <button className="btn" onClick={handleDedupe} disabled={deduping}
+              style={{ color: '#f59e0b', borderColor: 'rgba(245,158,11,.3)', fontSize: 13 }}>
+              {deduping ? 'Removing…' : `🧹 ${duplicates.length} duplicate${duplicates.length !== 1 ? 's' : ''}`}
+            </button>
+          )}
           <button className="btn btn-ghost" style={{ fontSize: 13 }}
             onClick={() => exportTransactionsCSV(txns)}>⬇ CSV</button>
           <button className="btn btn-primary" onClick={openAdd}>+ Add</button>
