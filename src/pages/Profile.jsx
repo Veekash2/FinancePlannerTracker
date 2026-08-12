@@ -33,7 +33,7 @@ export default function Profile() {
   const goalsReached = data?.goals.filter(g => g.current_amount >= g.target_amount).length ?? 0
 
   return (
-    <div>
+    <div style={{ maxWidth: 680, margin: '0 auto' }}>
       <div className="page-header">
         <h1 className="page-title">Profile</h1>
       </div>

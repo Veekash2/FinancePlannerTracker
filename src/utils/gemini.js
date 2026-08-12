@@ -11,18 +11,28 @@ function fileToBase64(file) {
   })
 }
 
-async function generate(parts) {
-  const res = await fetch(`${BASE}?key=${GEMINI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts }] }),
-  })
-  if (!res.ok) {
+async function generate(parts, { retries = 4, onRetry } = {}) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(`${BASE}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }] }),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      return data.candidates[0].content.parts[0].text
+    }
     const err = await res.json().catch(() => ({}))
+    const isOverloaded = res.status === 503 || res.status === 429 ||
+      (err.error?.message ?? '').toLowerCase().includes('demand')
+    if (isOverloaded && attempt < retries) {
+      const wait = Math.min(8000, 2000 * Math.pow(2, attempt))   // 2s, 4s, 8s, 8s
+      onRetry?.(attempt + 1, wait)
+      await new Promise(r => setTimeout(r, wait))
+      continue
+    }
     throw new Error(err.error?.message ?? `Gemini API error ${res.status}`)
   }
-  const data = await res.json()
-  return data.candidates[0].content.parts[0].text
 }
 
 function parseJSON(text) {
@@ -187,7 +197,7 @@ Rules:
 }
 
 // ── Parse PDF bank statement ─────────────────────────────────────────────────
-export async function parseBankStatementPDF(file) {
+export async function parseBankStatementPDF(file, { onRetry } = {}) {
   const base64 = await fileToBase64(file)
   const today = new Date().toISOString().slice(0, 10)
 
@@ -222,6 +232,46 @@ Rules:
     },
   ]
 
+  const text = await generate(parts, { onRetry })
+  return parseJSON(text)
+}
+
+// ── Detect recurring income from transaction history ─────────────────────────
+export async function detectRecurringIncome(transactions) {
+  const today = new Date().toISOString().slice(0, 10)
+  const lines = transactions
+    .filter(t => t.type === 'income')
+    .map(t => `${t.date} | ${t.description} | R${parseFloat(t.amount).toFixed(2)}`)
+    .join('\n')
+
+  if (!lines) return []
+
+  const parts = [{
+    text: `Analyze these income transactions and identify recurring or regular income sources.
+
+Look for: salary payments, freelance retainers, regular transfers, rental income, dividends, grants, stipends.
+
+Transactions:
+${lines}
+
+Return ONLY a valid JSON array. Empty array [] if nothing found. No markdown, no explanation.
+[
+  {
+    "name": "Income source name e.g. Salary - Employer",
+    "amount": 5000.00,
+    "frequency": "monthly",
+    "category": "Salary",
+    "last_date": "${today}"
+  }
+]
+
+Rules:
+- Only include clearly recurring income — exclude once-off deposits or transfers
+- frequency: "monthly", "weekly", or "biweekly"
+- category: "Salary", "Freelance", or "Other"
+- amount: the typical/most common amount seen
+- name: human-readable source name`,
+  }]
   const text = await generate(parts)
   return parseJSON(text)
 }
