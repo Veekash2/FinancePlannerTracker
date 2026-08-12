@@ -4,7 +4,7 @@ import { CATEGORY_COLORS, CATEGORY_ICONS, fmt } from '../utils/format'
 import { getAccounts, updateAccount, ACCOUNT_TYPES, getManualIncome, saveManualIncome } from '../utils/accounts'
 import { getSetting, setSetting } from '../utils/settings'
 import { useAuth } from '../context/AuthContext'
-import { DonutChart, AreaChart } from '../components/Charts'
+import { DonutChart, AreaChart, TrendChart } from '../components/Charts'
 import { logNetWorth, getNetWorthHistory } from '../utils/netWorthHistory'
 import { getBudgets } from '../utils/budgets'
 
@@ -336,18 +336,26 @@ export default function Dashboard() {
 
   const donutTotal = donutSegments.reduce((s, d) => s + d.value, 0)
 
-  // 6-month spending trend
+  // 6-month income + spending trend
   const now = new Date()
   const monthlySpend = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
     const m = d.getMonth(), y = d.getFullYear()
     const value = allTxns
-      .filter(t => { const td = new Date(t.date); return t.type === 'expense' && td.getMonth() === m && td.getFullYear() === y })
+      .filter(t => { const parts = (t.date||'').split('-'); return t.type === 'expense' && parseInt(parts[1],10)-1===m && parseInt(parts[0],10)===y })
+      .reduce((s, t) => s + parseFloat(t.amount), 0)
+    return { label: d.toLocaleDateString('en-US', { month: 'short' }), value }
+  })
+  const monthlyIncome = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    const m = d.getMonth(), y = d.getFullYear()
+    const value = allTxns
+      .filter(t => { const parts = (t.date||'').split('-'); return t.type === 'income' && parseInt(parts[1],10)-1===m && parseInt(parts[0],10)===y })
       .reduce((s, t) => s + parseFloat(t.amount), 0)
     return { label: d.toLocaleDateString('en-US', { month: 'short' }), value }
   })
 
-  const hasSpendingData = monthlySpend.some(p => p.value > 0)
+  const hasSpendingData = monthlySpend.some(p => p.value > 0) || monthlyIncome.some(p => p.value > 0)
 
   // Net worth history for chart
   const nwPoints = nwHistory.length >= 2
@@ -496,11 +504,11 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── 6-month spending trend ── */}
+      {/* ── 6-month income vs expenses trend ── */}
       {hasSpendingData && (
         <div className="card" style={{ marginBottom: 20 }}>
-          <div className="card-title" style={{ marginBottom: 16 }}>Spending trend — last 6 months</div>
-          <AreaChart points={monthlySpend} color="#6366f1" />
+          <div className="card-title" style={{ marginBottom: 4 }}>Income vs Expenses — last 6 months</div>
+          <TrendChart income={monthlyIncome} expenses={monthlySpend} />
         </div>
       )}
 

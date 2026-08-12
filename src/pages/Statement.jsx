@@ -249,14 +249,22 @@ export default function Statement() {
           {income.map((row, i) => {
             const suggestion = Math.round(txnIncomeByCat[row.cat] || 0)
             return editing ? (
-              <EditRow key={row.cat} row={row} suggestion={suggestion}
+              <EditRow key={i} row={row} suggestion={suggestion}
                 onChange={v => setIncome(rows => rows.map((r, j) => j === i ? { ...r, amount: v } : r))}
-                onAccept={() => acceptSuggestion('income', row.cat)} />
+                onLabelChange={v => setIncome(rows => rows.map((r, j) => j === i ? { ...r, label: v, cat: v } : r))}
+                onAccept={() => acceptSuggestion('income', row.cat)}
+                onDelete={() => setIncome(rows => rows.filter((_, j) => j !== i))} />
             ) : row.amount ? (
-              <Row key={row.cat} label={row.label} value={fmt(parseFloat(row.amount))} valueColor="#22c55e" />
+              <Row key={i} label={row.label} value={fmt(parseFloat(row.amount))} valueColor="#22c55e" />
             ) : null
           })}
-          {!editing && Object.keys(income.filter(r => r.amount)).length === 0 && (
+          {editing && (
+            <button onClick={() => setIncome(rows => [...rows, { cat: 'Custom', label: 'New Income', amount: '' }])}
+              style={{ display: 'block', width: '100%', padding: '7px 12px', textAlign: 'left', fontSize: 13,
+                color: '#22c55e', background: 'rgba(34,197,94,.05)', border: 'none', borderTop: '1px solid var(--border)',
+                cursor: 'pointer', fontWeight: 600 }}>+ Add income row</button>
+          )}
+          {!editing && income.filter(r => r.amount).length === 0 && (
             <EmptyRow label={<span>No income entered — <button onClick={handleEdit} style={{ color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontSize:13 }}>click Edit to add</button></span>} />
           )}
           <TotalRow label="Total Income" value={fmt(totalIncome)} color="#22c55e" />
@@ -294,13 +302,21 @@ export default function Statement() {
           {expenses.map((row, i) => {
             const suggestion = Math.round(txnExpenseByCat[row.cat] || 0)
             return editing ? (
-              <EditRow key={row.cat} row={row} suggestion={suggestion}
+              <EditRow key={i} row={row} suggestion={suggestion}
                 onChange={v => setExpenses(rows => rows.map((r, j) => j === i ? { ...r, amount: v } : r))}
-                onAccept={() => acceptSuggestion('expense', row.cat)} />
+                onLabelChange={v => setExpenses(rows => rows.map((r, j) => j === i ? { ...r, label: v, cat: v } : r))}
+                onAccept={() => acceptSuggestion('expense', row.cat)}
+                onDelete={() => setExpenses(rows => rows.filter((_, j) => j !== i))} />
             ) : row.amount ? (
-              <Row key={row.cat} label={row.label} value={fmt(parseFloat(row.amount))} valueColor="#ef4444" />
+              <Row key={i} label={row.label} value={fmt(parseFloat(row.amount))} valueColor="#ef4444" />
             ) : null
           })}
+          {editing && (
+            <button onClick={() => setExpenses(rows => [...rows, { cat: 'Custom', label: 'New Expense', amount: '' }])}
+              style={{ display: 'block', width: '100%', padding: '7px 12px', textAlign: 'left', fontSize: 13,
+                color: '#ef4444', background: 'rgba(239,68,68,.05)', border: 'none', borderTop: '1px solid var(--border)',
+                cursor: 'pointer', fontWeight: 600 }}>+ Add expense row</button>
+          )}
           {!editing && expenses.filter(r => r.amount).length === 0 && (
             <EmptyRow label={<span>No expenses entered — <button onClick={handleEdit} style={{ color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontSize:13 }}>click Edit to add</button></span>} />
           )}
@@ -342,26 +358,29 @@ export default function Statement() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-function EditRow({ row, suggestion, onChange, onAccept }) {
+function EditRow({ row, suggestion, onChange, onAccept, onDelete, onLabelChange }) {
   return (
-    <div style={{ padding: '6px 16px', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <span style={{ fontSize: 13, color: 'var(--muted)', flex: 1 }}>{row.label}</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {suggestion > 0 && (
-            <button onClick={onAccept} title="Use suggested value from your transactions"
-              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
-                background: 'rgba(6,182,212,.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,.3)', fontWeight: 600 }}>
-              ✦ {fmt(suggestion)}
-            </button>
-          )}
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>R</span>
-          <input type="number" min="0" step="1" value={row.amount}
-            onChange={e => onChange(e.target.value)}
-            placeholder="0"
-            className="form-input"
-            style={{ width: 100, padding: '4px 8px', fontSize: 13, height: 30, textAlign: 'right' }} />
-        </div>
+    <div style={{ padding: '6px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <button onClick={onDelete} title="Remove row"
+        style={{ flexShrink: 0, width: 20, height: 20, borderRadius: '50%', border: 'none', cursor: 'pointer',
+          background: 'rgba(239,68,68,.12)', color: '#ef4444', fontSize: 14, lineHeight: 1,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>×</button>
+      <input value={row.label} onChange={e => onLabelChange(e.target.value)}
+        className="form-input"
+        style={{ flex: 1, padding: '3px 8px', fontSize: 13, height: 28, minWidth: 0 }} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        {suggestion > 0 && (
+          <button onClick={onAccept} title="Use suggested value from your transactions"
+            style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: 'rgba(6,182,212,.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,.3)', fontWeight: 600 }}>
+            ✦ {fmt(suggestion)}
+          </button>
+        )}
+        <input type="number" min="0" step="1" value={row.amount}
+          onChange={e => onChange(e.target.value)}
+          placeholder="0"
+          className="form-input"
+          style={{ width: 90, padding: '3px 8px', fontSize: 13, height: 28, textAlign: 'right' }} />
       </div>
     </div>
   )
