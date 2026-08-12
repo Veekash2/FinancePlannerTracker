@@ -7,6 +7,7 @@ import Profile from './pages/Profile'
 import AIAssistant from './pages/AIAssistant'
 import Accounts from './pages/Accounts'
 import Budget from './pages/Budget'
+import Statement from './pages/Statement'
 import Login from './pages/Login'
 import QuickAdd from './components/QuickAdd'
 import AlertBanner from './components/AlertBanner'
@@ -20,6 +21,7 @@ const PAGES = [
   { id: 'goals',        label: 'Goals',         icon: '🎯' },
   { id: 'budget',       label: 'Budget',        icon: '📋' },
   { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
+  { id: 'statement',    label: 'Cash Flow',     icon: '📄' },
   { id: 'ai',           label: 'AI Assistant',  icon: '✨' },
 ]
 
@@ -67,6 +69,7 @@ export default function App() {
     if (page === 'goals')         return <Goals />
     if (page === 'subscriptions') return <Subscriptions key={key} />
     if (page === 'budget')        return <Budget key={key} />
+    if (page === 'statement')      return <Statement />
     if (page === 'ai')            return <AIAssistant />
     if (page === 'profile')       return <Profile />
   }
