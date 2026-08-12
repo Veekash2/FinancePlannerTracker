@@ -23,19 +23,37 @@ async function generate(parts, { retries = 4, onRetry } = {}) {
       return data.candidates[0].content.parts[0].text
     }
     const err = await res.json().catch(() => ({}))
-    const isOverloaded = res.status === 503 || res.status === 429 ||
-      (err.error?.message ?? '').toLowerCase().includes('demand')
+    const msg = err.error?.message ?? ''
+    const isQuotaExceeded = msg.toLowerCase().includes('quota') || msg.toLowerCase().includes('billing')
+    const isOverloaded    = res.status === 503 || res.status === 429 ||
+      msg.toLowerCase().includes('demand') || isQuotaExceeded
+
+    console.warn(`[AI] Gemini error (attempt ${attempt + 1}/${retries + 1}) — status ${res.status}:`, msg)
+
+    // Quota exceeded: no point retrying — go straight to Claude fallback
+    if (isQuotaExceeded && ANTHROPIC_API_KEY) {
+      console.info('[AI] Quota exceeded → switching to Claude fallback')
+      onRetry?.('claude', 0)
+      return callClaude(parts)
+    }
+    if (isQuotaExceeded) {
+      console.error('[AI] Quota exceeded and no Anthropic key set — cannot fallback')
+      throw new Error('Gemini quota exceeded. Add VITE_ANTHROPIC_API_KEY for Claude fallback.')
+    }
+
     if (isOverloaded && attempt < retries) {
       const wait = Math.min(8000, 2000 * Math.pow(2, attempt))   // 2s, 4s, 8s, 8s
+      console.info(`[AI] Gemini overloaded — retrying in ${wait}ms`)
       onRetry?.(attempt + 1, wait)
       await new Promise(r => setTimeout(r, wait))
       continue
     }
     if (isOverloaded && ANTHROPIC_API_KEY) {
+      console.info('[AI] Gemini overloaded after all retries → switching to Claude fallback')
       onRetry?.('claude', 0)
       return callClaude(parts)
     }
-    throw new Error(err.error?.message ?? `Gemini API error ${res.status}`)
+    throw new Error(msg || `Gemini API error ${res.status}`)
   }
 }
 
@@ -56,6 +74,7 @@ function toClaudeContent(parts) {
 
 async function callClaude(parts) {
   if (!ANTHROPIC_API_KEY) throw new Error('No Anthropic API key configured')
+  console.info(`[AI] Calling Claude fallback (${CLAUDE_FALLBACK_MODEL}, max ${CLAUDE_MAX_TOKENS} tokens)`)
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -75,6 +94,7 @@ async function callClaude(parts) {
     throw new Error(err.error?.message ?? `Claude API error ${res.status}`)
   }
   const data = await res.json()
+  console.info('[AI] Claude response received')
   return data.content[0].text
 }
 
