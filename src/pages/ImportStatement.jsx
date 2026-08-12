@@ -23,6 +23,7 @@ export default function ImportStatement({ onImported }) {
     PAGE, page, setPage, files, globalStep, rows, recur, income, tab, setTab,
     savedTxns, savedSubs, savedInc, noKey,
     processFiles, cancel, reset, handleSave,
+    saveProgress,
     removeRow, updateRow, updateSub, updateInc, toggleAll, toggleAllS, toggleAllI,
   } = useImport()
 
@@ -38,6 +39,28 @@ export default function ImportStatement({ onImported }) {
     return s + (sub.billing_cycle==='yearly' ? a/12 : sub.billing_cycle==='weekly' ? a*4.33 : a)
   }, 0)
   const totalRecurIncome = includedInc.reduce((s, inc) => s + parseFloat(inc.amount), 0)
+
+  // ── Saving ─────────────────────────────────────────────────────────────
+  if (page === PAGE.SAVING) {
+    const sp = saveProgress || { done: 0, total: 1, phase: 'subscriptions' }
+    const pct = Math.round((sp.done / sp.total) * 100)
+    const phaseLabel = sp.phase === 'subscriptions' ? '🔁 Saving subscriptions'
+      : sp.phase === 'income' ? '💰 Saving income'
+      : '💳 Saving transactions'
+    return (
+      <div className="card" style={{ textAlign:'center', padding:'3rem 2rem', maxWidth:480, margin:'0 auto' }}>
+        <div style={{ fontSize:40, marginBottom:16 }}>💾</div>
+        <h2 style={{ fontSize:18, fontWeight:700, marginBottom:6 }}>Saving to your account…</h2>
+        <p style={{ color:'var(--muted)', fontSize:13, marginBottom:24 }}>{phaseLabel}</p>
+        <div style={{ height:8, background:'var(--border)', borderRadius:4, overflow:'hidden', marginBottom:10 }}>
+          <div style={{ height:'100%', background:'#6366f1', borderRadius:4, transition:'width .3s ease', width:`${pct}%` }} />
+        </div>
+        <p style={{ fontSize:13, color:'var(--muted)', fontVariantNumeric:'tabular-nums' }}>
+          {sp.done} / {sp.total} saved
+        </p>
+      </div>
+    )
+  }
 
   // ── Done ───────────────────────────────────────────────────────────────
   if (page === PAGE.DONE) return (

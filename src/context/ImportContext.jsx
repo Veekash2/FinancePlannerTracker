@@ -21,6 +21,7 @@ export function ImportProvider({ children }) {
   const [savedTxns,   setSavedTxns]  = useState(0)
   const [savedSubs,   setSavedSubs]  = useState(0)
   const [savedInc,    setSavedInc]   = useState(0)
+  const [saveProgress, setSaveProgress] = useState(null) // { done, total, phase }
   const cancelledRef  = useRef(false)
   const noKey = !GEMINI_API_KEY
 
@@ -108,9 +109,25 @@ export function ImportProvider({ children }) {
       )
     } catch {}
 
+    // Deduplicate subs and income by name (multiple PDFs detect same recurring items)
+    const uniqueSubs = Object.values(
+      detectedSubs.reduce((acc, s) => {
+        const key = s.name.toLowerCase().trim()
+        if (!acc[key]) acc[key] = s
+        return acc
+      }, {})
+    )
+    const uniqueIncome = Object.values(
+      detectedIncome.reduce((acc, s) => {
+        const key = s.name.toLowerCase().trim()
+        if (!acc[key]) acc[key] = s
+        return acc
+      }, {})
+    )
+
     setRows(oneTimeTxns)
-    setRecur(detectedSubs.map((s, i) => ({ ...s, _id: i, _include: true })))
-    setIncome(detectedIncome.map((s, i) => ({ ...s, _id: i, _include: true })))
+    setRecur(uniqueSubs.map((s, i) => ({ ...s, _id: i, _include: true })))
+    setIncome(uniqueIncome.map((s, i) => ({ ...s, _id: i, _include: true })))
     setGlobalStep('ready')
     await delay(700)
     if (!cancelledRef.current) {
@@ -120,17 +137,43 @@ export function ImportProvider({ children }) {
   }
 
   async function handleSave(onImported) {
+    const toSaveTxns = rows.filter(r => r._include)
+    const toSaveSubs = recur.filter(s => s._include)
+    const toSaveInc  = income.filter(s => s._include)
+    const total = toSaveTxns.length + toSaveSubs.length + toSaveInc.length
+
+    setSaveProgress({ done: 0, total, phase: 'subscriptions' })
     setPage(PAGE.SAVING)
-    let tc = 0, sc = 0, ic = 0
-    for (const row of rows.filter(r => r._include)) {
-      try { await api.addTransaction({ description: row.description, amount: parseFloat(row.amount), type: row.type, date: row.date, category: row.category }); tc++ } catch {}
-    }
-    for (const sub of recur.filter(s => s._include)) {
+
+    let tc = 0, sc = 0, ic = 0, done = 0
+
+    // Fetch existing subscription names to avoid duplicates
+    const existingSubs = await api.getSubscriptions().catch(() => [])
+    const existingSubNames = new Set(existingSubs.map(s => s.name.toLowerCase().trim()))
+
+    for (const sub of toSaveSubs) {
+      if (existingSubNames.has(sub.name.toLowerCase().trim())) { done++; setSaveProgress({ done, total, phase: 'subscriptions' }); continue }
       try { await api.addSubscription({ name: sub.name, amount: parseFloat(sub.amount), billing_cycle: sub.billing_cycle || 'monthly', category: sub.category || 'Other', next_billing_date: sub.next_billing_date || today(), color: '#6366f1' }); sc++ } catch {}
+      done++; setSaveProgress({ done, total, phase: 'subscriptions' })
     }
-    for (const inc of income.filter(s => s._include)) {
+    setSaveProgress({ done, total, phase: 'income' })
+    for (const inc of toSaveInc) {
       try { await api.addTransaction({ description: inc.name, amount: parseFloat(inc.amount), type: 'income', date: inc.last_date || today(), category: inc.category || 'Salary' }); ic++ } catch {}
+      done++; setSaveProgress({ done, total, phase: 'income' })
     }
+    setSaveProgress({ done, total, phase: 'transactions' })
+    // Save transactions in batches of 10 in parallel for speed
+    const BATCH = 10
+    for (let i = 0; i < toSaveTxns.length; i += BATCH) {
+      const batch = toSaveTxns.slice(i, i + BATCH)
+      const results = await Promise.allSettled(batch.map(row =>
+        api.addTransaction({ description: row.description, amount: parseFloat(row.amount), type: row.type, date: row.date, category: row.category })
+      ))
+      tc += results.filter(r => r.status === 'fulfilled').length
+      done += batch.length
+      setSaveProgress({ done, total, phase: 'transactions' })
+    }
+
     setSavedTxns(tc); setSavedSubs(sc); setSavedInc(ic)
     setPage(PAGE.DONE)
     onImported?.()
@@ -149,6 +192,7 @@ export function ImportProvider({ children }) {
       PAGE, page, setPage, files, globalStep, rows, recur, income, tab, setTab,
       savedTxns, savedSubs, savedInc, noKey, isRunning,
       processFiles, cancel, reset, handleSave,
+      saveProgress,
       removeRow, updateRow, updateSub, updateInc, toggleAll, toggleAllS, toggleAllI,
     }}>
       {children}
