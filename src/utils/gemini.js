@@ -186,6 +186,46 @@ Rules:
   return parseJSON(text)
 }
 
+// ── Parse PDF bank statement ─────────────────────────────────────────────────
+export async function parseBankStatementPDF(file) {
+  const base64 = await fileToBase64(file)
+  const today = new Date().toISOString().slice(0, 10)
+
+  const parts = [
+    { inline_data: { mime_type: 'application/pdf', data: base64 } },
+    {
+      text: `You are a bank statement parser. Extract every individual transaction from this bank statement PDF.
+
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "bank": "bank name if visible",
+  "account": "account number or name if visible",
+  "period": "statement period if visible",
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "description": "clean description (remove reference numbers, trim spaces)",
+      "amount": 0.00,
+      "type": "income or expense",
+      "category": "one of: Salary|Freelance|Food|Transport|Entertainment|Shopping|Bills|Health|Other"
+    }
+  ]
+}
+
+Rules:
+- amount is always a POSITIVE number, no currency symbols
+- type is "expense" when money left the account (debits, withdrawals, payments), "income" when money came in (credits, deposits, salary)
+- Extract ALL transactions — do not skip any
+- If a date is missing use today: ${today}
+- description should be human-readable, remove bank codes like POS/NB/ATM prefixes where possible but keep the merchant name
+- category: Salary for regular employer payments, Freelance for irregular income, Food for groceries/restaurants, Transport for fuel/Uber/parking, Bills for utilities/insurance/phone, Health for medical/pharmacy, Shopping for retail, Entertainment for leisure, Other for anything else`,
+    },
+  ]
+
+  const text = await generate(parts)
+  return parseJSON(text)
+}
+
 // ── Bulk categorize (for CSV import) ─────────────────────────────────────────
 export async function bulkCategorize(descriptions) {
   const numbered = descriptions.map((d, i) => `${i + 1}. ${d}`).join('\n')

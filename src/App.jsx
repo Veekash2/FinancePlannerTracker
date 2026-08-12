@@ -8,6 +8,7 @@ import AIAssistant from './pages/AIAssistant'
 import Accounts from './pages/Accounts'
 import Budget from './pages/Budget'
 import Statement from './pages/Statement'
+import ImportStatement from './pages/ImportStatement'
 import Login from './pages/Login'
 import QuickAdd from './components/QuickAdd'
 
@@ -22,6 +23,7 @@ const PAGES = [
   { id: 'budget',       label: 'Budget',        icon: '📋' },
   { id: 'subscriptions',label: 'Subscriptions', icon: '🔁' },
   { id: 'statement',    label: 'Cash Flow',     icon: '📄' },
+  { id: 'import',       label: 'Import PDF',    icon: '⬆️' },
   { id: 'ai',           label: 'AI Assistant',  icon: '✨' },
 ]
 
@@ -70,6 +72,7 @@ export default function App() {
     if (page === 'subscriptions') return <Subscriptions key={key} />
     if (page === 'budget')        return <Budget key={key} />
     if (page === 'statement')      return <Statement />
+    if (page === 'import')         return <ImportStatement onImported={() => setRefreshKey(k => k + 1)} />
     if (page === 'ai')            return <AIAssistant />
     if (page === 'profile')       return <Profile />
   }
