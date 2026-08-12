@@ -13,6 +13,7 @@ import Login from './pages/Login'
 import QuickAdd from './components/QuickAdd'
 
 import { useAuth } from './context/AuthContext'
+import { useImport } from './context/ImportContext'
 
 // Desktop sidebar
 const PAGES = [
@@ -48,6 +49,7 @@ function NavItem({ page, active, onClick }) {
 
 export default function App() {
   const { isAuthed, loading, user, logout } = useAuth()
+  const { isRunning: importRunning } = useImport()
   const [page, setPage]         = useState('dashboard')
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -84,7 +86,17 @@ export default function App() {
         <div className="sidebar-logo">💰 Spendwise</div>
         <nav>
           {PAGES.map(p => (
-            <NavItem key={p.id} page={p} active={page === p.id} onClick={setPage} />
+            <div key={p.id} style={{ position: 'relative' }}>
+              <NavItem page={p} active={page === p.id} onClick={setPage} />
+              {p.id === 'import' && importRunning && (
+                <span style={{
+                  position: 'absolute', top: 8, right: 10,
+                  width: 8, height: 8, borderRadius: '50%',
+                  background: '#6366f1', boxShadow: '0 0 0 2px rgba(99,102,241,.3)',
+                  animation: 'pulse 1.5s ease-in-out infinite',
+                }} />
+              )}
+            </div>
           ))}
         </nav>
         <div style={{ padding: '16px 10px 0', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
