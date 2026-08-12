@@ -123,7 +123,9 @@ export default function App() {
       </header>
 
       <main className="main">
-        {renderPage()}
+        <div className="page-wrap">
+          {renderPage()}
+        </div>
       </main>
 
       {/* Quick-add FAB */}
