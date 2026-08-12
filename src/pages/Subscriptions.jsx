@@ -43,6 +43,7 @@ export default function Subscriptions() {
   const [form, setForm]           = useState(emptyForm)
 
   // AI detection state
+  const [deduping, setDeduping]   = useState(false)
   const [detecting, setDetecting] = useState(false)
   const [detected, setDetected]   = useState(null)   // array of candidates
   const [detectErr, setDetectErr] = useState(null)
@@ -118,6 +119,26 @@ export default function Subscriptions() {
   const updateDetected = (id, field, value) =>
     setDetected(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
 
+  const handleDedupe = async () => {
+    setDeduping(true)
+    try {
+      const seen = {}
+      const toDelete = []
+      for (const sub of subs) {
+        const key = sub.name.toLowerCase().trim()
+        if (seen[key]) {
+          toDelete.push(sub.id)
+        } else {
+          seen[key] = true
+        }
+      }
+      await Promise.all(toDelete.map(id => api.deleteSubscription(id)))
+      load()
+    } finally {
+      setDeduping(false)
+    }
+  }
+
   const totalMonthly = subs.reduce((s, sub) => s + monthlyEquiv(parseFloat(sub.amount), sub.billing_cycle), 0)
 
   return (
@@ -125,6 +146,16 @@ export default function Subscriptions() {
       <div className="page-header">
         <h1 className="page-title">Subscriptions</h1>
         <div style={{ display: 'flex', gap: 8 }}>
+          {(() => {
+            const names = subs.map(s => s.name.toLowerCase().trim())
+            const hasDups = names.length !== new Set(names).size
+            return hasDups ? (
+              <button className="btn" onClick={handleDedupe} disabled={deduping}
+                style={{ color: '#f59e0b', borderColor: 'rgba(245,158,11,.3)' }}>
+                {deduping ? 'Removing…' : `🧹 Remove duplicates`}
+              </button>
+            ) : null
+          })()}
           <button className="btn" onClick={handleDetect} disabled={detecting}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {detecting
