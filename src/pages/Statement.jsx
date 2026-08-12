@@ -9,9 +9,42 @@ const fmt = n =>
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Interest/Dividends', 'Rental', 'Business', 'Other']
-const EXPENSE_CATEGORIES = ['Taxes', 'Mortgage/Rent', 'School/Loan', 'Car Payment', 'Credit Card', 'Food', 'Transport',
-  'Bills', 'Health', 'Entertainment', 'Shopping', 'Subscriptions', 'Other']
+const DEFAULT_INCOME_ROWS = [
+  { cat: 'Salary',             label: 'Salary' },
+  { cat: 'Freelance',          label: 'Freelance / Side Income' },
+  { cat: 'Interest/Dividends', label: 'Interest / Dividends' },
+  { cat: 'Rental',             label: 'Rental Income' },
+  { cat: 'Business',           label: 'Business Income' },
+  { cat: 'Other',              label: 'Other Income' },
+]
+
+const DEFAULT_EXPENSE_ROWS = [
+  { cat: 'Mortgage/Rent',  label: 'Mortgage / Rent' },
+  { cat: 'Food',           label: 'Food & Groceries' },
+  { cat: 'Transport',      label: 'Transport' },
+  { cat: 'Bills',          label: 'Bills & Utilities' },
+  { cat: 'Health',         label: 'Health & Medical' },
+  { cat: 'Entertainment',  label: 'Entertainment' },
+  { cat: 'Shopping',       label: 'Shopping' },
+  { cat: 'Subscriptions',  label: 'Subscriptions' },
+  { cat: 'School/Loan',    label: 'Loans / Education' },
+  { cat: 'Other',          label: 'Other Expenses' },
+]
+
+function monthKey(email, year, month) {
+  return `cashflow_${email}_${year}_${month}`
+}
+
+function loadSaved(email, year, month) {
+  try {
+    const raw = localStorage.getItem(monthKey(email, year, month))
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function saveToDisk(email, year, month, data) {
+  localStorage.setItem(monthKey(email, year, month), JSON.stringify(data))
+}
 
 function monthlySubAmount(sub) {
   const a = parseFloat(sub.amount)
@@ -22,13 +55,21 @@ function monthlySubAmount(sub) {
 
 export default function Statement() {
   const { user } = useAuth()
-  const now = new Date()
+  const email = user?.email ?? ''
+  const now   = new Date()
+
   const [year,  setYear]  = useState(now.getFullYear())
-  const [month, setMonth] = useState(now.getMonth())   // 0-indexed
+  const [month, setMonth] = useState(now.getMonth())
   const [txns,  setTxns]  = useState([])
   const [subs,  setSubs]  = useState([])
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
+
+  // Manual entry state
+  const [income,   setIncome]   = useState([])   // [{cat, label, amount: ''}]
+  const [expenses, setExpenses] = useState([])
+  const [editing,  setEditing]  = useState(false)
+  const [saved,    setSaved]    = useState(false)
 
   useEffect(() => {
     setLoading(true)
@@ -37,58 +78,58 @@ export default function Statement() {
       .finally(() => setLoading(false))
   }, [])
 
+  // Load saved data when month/year changes
+  useEffect(() => {
+    const saved = loadSaved(email, year, month)
+    if (saved) {
+      setIncome(saved.income)
+      setExpenses(saved.expenses)
+    } else {
+      setIncome(DEFAULT_INCOME_ROWS.map(r => ({ ...r, amount: '' })))
+      setExpenses(DEFAULT_EXPENSE_ROWS.map(r => ({ ...r, amount: '' })))
+    }
+    setSaved(false)
+    setEditing(false)
+  }, [year, month, email])
+
   const accounts = user?.email ? getAccounts(user.email) : []
 
-  // Filter to selected month
+  // ── Suggestions from actual transactions ──────────────────────────────────
   const monthTxns = txns.filter(t => {
-    // Parse date string directly to avoid UTC→local timezone shift
     const parts = (t.date || '').split('-')
     if (parts.length !== 3) return false
     return parseInt(parts[1], 10) - 1 === month && parseInt(parts[0], 10) === year
   })
 
-  // ── INCOME ──────────────────────────────────────────────────────────────
-  const incomeRows = {}
+  const txnIncomeByCat = {}
   monthTxns.filter(t => t.type === 'income').forEach(t => {
-    const cat = t.category || 'Other'
-    incomeRows[cat] = (incomeRows[cat] || 0) + parseFloat(t.amount)
+    const c = t.category || 'Other'
+    txnIncomeByCat[c] = (txnIncomeByCat[c] || 0) + parseFloat(t.amount)
   })
-
-  // ── EXPENSES ────────────────────────────────────────────────────────────
-  const expenseRows = {}
+  const txnExpenseByCat = {}
   monthTxns.filter(t => t.type === 'expense').forEach(t => {
-    const cat = t.category || 'Other'
-    expenseRows[cat] = (expenseRows[cat] || 0) + parseFloat(t.amount)
+    const c = t.category || 'Other'
+    txnExpenseByCat[c] = (txnExpenseByCat[c] || 0) + parseFloat(t.amount)
   })
-  // Add subscriptions as their own group
   const subsCost = subs.reduce((s, sub) => s + monthlySubAmount(sub), 0)
-  if (subsCost > 0) expenseRows['Subscriptions'] = (expenseRows['Subscriptions'] || 0) + subsCost
+  if (subsCost > 0) txnExpenseByCat['Subscriptions'] = (txnExpenseByCat['Subscriptions'] || 0) + subsCost
 
-  const totalIncome   = Object.values(incomeRows).reduce((s, v) => s + v, 0)
-  const totalExpenses = Object.values(expenseRows).reduce((s, v) => s + v, 0)
+  // ── Totals from manual entries ────────────────────────────────────────────
+  const totalIncome   = income.reduce((s, r)   => s + (parseFloat(r.amount) || 0), 0)
+  const totalExpenses = expenses.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
   const cashFlow      = totalIncome - totalExpenses
+  const passiveIncome = income.filter(r => r.cat !== 'Salary').reduce((s, r) => s + (parseFloat(r.amount) || 0), 0)
 
-  // Passive income = non-salary income
-  const passiveIncome = Object.entries(incomeRows)
-    .filter(([k]) => k !== 'Salary')
-    .reduce((s, [, v]) => s + v, 0)
-
-  // ── ASSETS ──────────────────────────────────────────────────────────────
-  const investmentAccounts = accounts.filter(a => a.type === 'investment')
+  // ── Assets / Liabilities ──────────────────────────────────────────────────
   const savingsAccounts    = accounts.filter(a => a.type === 'savings')
-  const goalAssets = goals.map(g => ({ name: g.name, value: g.current_amount, color: g.color }))
+  const investmentAccounts = accounts.filter(a => a.type === 'investment')
+  const creditAccounts     = accounts.filter(a => a.type === 'credit')
+  const goalAssets         = goals.map(g => ({ name: g.name, value: g.current_amount, color: g.color }))
+  const totalAssets        = accounts.filter(a => a.type !== 'credit').reduce((s, a) => s + parseFloat(a.balance || 0), 0)
+  const totalLiabilities   = creditAccounts.reduce((s, a) => s + parseFloat(a.balance || 0), 0)
+  const netWorth           = totalAssets - totalLiabilities
 
-  const totalAssets = accounts
-    .filter(a => a.type !== 'credit')
-    .reduce((s, a) => s + parseFloat(a.balance || 0), 0)
-
-  // ── LIABILITIES ──────────────────────────────────────────────────────────
-  const creditAccounts = accounts.filter(a => a.type === 'credit')
-  const totalLiabilities = creditAccounts.reduce((s, a) => s + parseFloat(a.balance || 0), 0)
-
-  const netWorth = totalAssets - totalLiabilities
-
-  // ── Month navigation ─────────────────────────────────────────────────────
+  // ── Navigation ────────────────────────────────────────────────────────────
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear(y => y - 1) }
     else setMonth(m => m - 1)
@@ -101,27 +142,79 @@ export default function Statement() {
   }
   const isCurrentMonth = year === now.getFullYear() && month === now.getMonth()
 
+  // ── Save ──────────────────────────────────────────────────────────────────
+  const handleSave = () => {
+    saveToDisk(email, year, month, { income, expenses })
+    setEditing(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const handleEdit = () => setEditing(true)
+
+  const acceptSuggestion = (type, cat) => {
+    const val = type === 'income'
+      ? Math.round(txnIncomeByCat[cat] || 0)
+      : Math.round(txnExpenseByCat[cat] || 0)
+    if (!val) return
+    if (type === 'income') {
+      setIncome(rows => rows.map(r => r.cat === cat ? { ...r, amount: String(val) } : r))
+    } else {
+      setExpenses(rows => rows.map(r => r.cat === cat ? { ...r, amount: String(val) } : r))
+    }
+  }
+
+  const acceptAllSuggestions = () => {
+    setIncome(rows => rows.map(r => {
+      const v = Math.round(txnIncomeByCat[r.cat] || 0)
+      return v ? { ...r, amount: String(v) } : r
+    }))
+    setExpenses(rows => rows.map(r => {
+      const v = Math.round(txnExpenseByCat[r.cat] || 0)
+      return v ? { ...r, amount: String(v) } : r
+    }))
+  }
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 300 }}>
       <div className="spinner" />
     </div>
   )
 
+  const hasAnySuggestions = Object.keys(txnIncomeByCat).length > 0 || Object.keys(txnExpenseByCat).length > 0
+
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', paddingBottom: 80 }}>
+
       {/* ── Header ── */}
-      <div className="page-header" style={{ marginBottom: 20 }}>
+      <div className="page-header" style={{ marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
         <h1 className="page-title">Cash Flow Statement</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button className="btn btn-ghost" style={{ fontSize: 13 }}
-            onClick={() => exportCashFlowPDF({
-              monthName: `${MONTH_NAMES[month]} ${year}`,
-              totalIncome, totalExpenses, cashFlow, passiveIncome, netWorth, totalAssets, totalLiabilities,
-              incomeRows, expenseRows,
-              savingsGoals: goals.map(g => ({ name: g.name, value: g.current_amount })),
-            })}>
-            ⬇ PDF
-          </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {editing ? (
+            <>
+              {hasAnySuggestions && (
+                <button className="btn btn-ghost" style={{ fontSize: 13, color: '#06b6d4', borderColor: 'rgba(6,182,212,.3)' }}
+                  onClick={acceptAllSuggestions}>
+                  ✦ Use all suggestions
+                </button>
+              )}
+              <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={() => setEditing(false)}>Cancel</button>
+              <button className="btn btn-primary" style={{ fontSize: 13 }} onClick={handleSave}>Save</button>
+            </>
+          ) : (
+            <>
+              {saved && <span style={{ fontSize: 12, color: 'var(--green)' }}>✓ Saved</span>}
+              <button className="btn btn-ghost" style={{ fontSize: 13 }}
+                onClick={() => exportCashFlowPDF({
+                  monthName: `${MONTH_NAMES[month]} ${year}`,
+                  totalIncome, totalExpenses, cashFlow, passiveIncome, netWorth, totalAssets, totalLiabilities,
+                  incomeRows: Object.fromEntries(income.filter(r => r.amount).map(r => [r.label, parseFloat(r.amount)])),
+                  expenseRows: Object.fromEntries(expenses.filter(r => r.amount).map(r => [r.label, parseFloat(r.amount)])),
+                  savingsGoals: goals.map(g => ({ name: g.name, value: g.current_amount })),
+                })}>⬇ PDF</button>
+              <button className="btn btn-ghost" style={{ fontSize: 13 }} onClick={handleEdit}>✏ Edit</button>
+            </>
+          )}
           <button className="btn btn-ghost" style={{ padding: '6px 10px' }} onClick={prevMonth}>‹</button>
           <span style={{ minWidth: 110, textAlign: 'center', fontWeight: 700, fontSize: 15 }}>
             {MONTH_NAMES[month]} {year}
@@ -131,15 +224,21 @@ export default function Statement() {
         </div>
       </div>
 
+      {/* ── Edit mode banner ── */}
+      {editing && (
+        <div style={{ marginBottom: 16, padding: '10px 16px', borderRadius: 10,
+          background: 'rgba(6,182,212,.06)', border: '1px solid rgba(6,182,212,.2)', fontSize: 13, color: '#06b6d4' }}>
+          ✦ Enter your actual amounts. Cyan suggestions are pulled from your imported transactions — click to use them.
+        </div>
+      )}
+
       {/* ── Summary strip ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 20 }}>
-        <SummaryTile label="Total Income"    value={fmt(totalIncome)}   color="var(--green)" />
-        <SummaryTile label="Total Expenses"  value={fmt(totalExpenses)} color="var(--red)"   />
-        <SummaryTile label="Passive Income"  value={fmt(passiveIncome)} color="#06b6d4"      />
-        <SummaryTile label="Cash Flow"       value={fmt(cashFlow)}
-          color={cashFlow >= 0 ? 'var(--green)' : 'var(--red)'}
-          highlight
-        />
+        <SummaryTile label="Total Income"   value={fmt(totalIncome)}   color="var(--green)" />
+        <SummaryTile label="Total Expenses" value={fmt(totalExpenses)} color="var(--red)"   />
+        <SummaryTile label="Passive Income" value={fmt(passiveIncome)} color="#06b6d4"      />
+        <SummaryTile label="Cash Flow"      value={fmt(cashFlow)}
+          color={cashFlow >= 0 ? 'var(--green)' : 'var(--red)'} highlight />
       </div>
 
       {/* ── Main grid ── */}
@@ -147,12 +246,19 @@ export default function Statement() {
 
         {/* LEFT: Income */}
         <Section title="INCOME" accent="#22c55e">
-          {Object.keys(incomeRows).length === 0
-            ? <EmptyRow label="No income recorded" />
-            : Object.entries(incomeRows).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => (
-              <Row key={cat} label={cat} value={fmt(amt)} valueColor="#22c55e" />
-            ))
-          }
+          {income.map((row, i) => {
+            const suggestion = Math.round(txnIncomeByCat[row.cat] || 0)
+            return editing ? (
+              <EditRow key={row.cat} row={row} suggestion={suggestion}
+                onChange={v => setIncome(rows => rows.map((r, j) => j === i ? { ...r, amount: v } : r))}
+                onAccept={() => acceptSuggestion('income', row.cat)} />
+            ) : row.amount ? (
+              <Row key={row.cat} label={row.label} value={fmt(parseFloat(row.amount))} valueColor="#22c55e" />
+            ) : null
+          })}
+          {!editing && Object.keys(income.filter(r => r.amount)).length === 0 && (
+            <EmptyRow label={<span>No income entered — <button onClick={handleEdit} style={{ color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontSize:13 }}>click Edit to add</button></span>} />
+          )}
           <TotalRow label="Total Income" value={fmt(totalIncome)} color="#22c55e" />
         </Section>
 
@@ -161,26 +267,19 @@ export default function Statement() {
           {savingsAccounts.length > 0 && (
             <>
               <SubHeader label="Savings / Cash" />
-              {savingsAccounts.map(a => (
-                <Row key={a.id} label={a.name} value={fmt(a.balance || 0)} />
-              ))}
+              {savingsAccounts.map(a => <Row key={a.id} label={a.name} value={fmt(a.balance || 0)} />)}
             </>
           )}
           {investmentAccounts.length > 0 && (
             <>
               <SubHeader label="Investments" />
-              {investmentAccounts.map(a => (
-                <Row key={a.id} label={a.name} value={fmt(a.balance || 0)} />
-              ))}
+              {investmentAccounts.map(a => <Row key={a.id} label={a.name} value={fmt(a.balance || 0)} />)}
             </>
           )}
           {goalAssets.length > 0 && (
             <>
               <SubHeader label="Savings Goals" />
-              {goalAssets.map(g => (
-                <Row key={g.name} label={g.name} value={fmt(g.value)}
-                  dot={g.color} />
-              ))}
+              {goalAssets.map(g => <Row key={g.name} label={g.name} value={fmt(g.value)} dot={g.color} />)}
             </>
           )}
           {accounts.filter(a => !['credit','investment','savings'].includes(a.type)).map(a => (
@@ -192,16 +291,18 @@ export default function Statement() {
 
         {/* LEFT: Expenses */}
         <Section title="EXPENSES" accent="#ef4444">
-          {Object.keys(expenseRows).length === 0
-            ? <EmptyRow label="No expenses recorded" />
-            : Object.entries(expenseRows).sort((a,b) => b[1]-a[1]).map(([cat, amt]) => (
-              <Row key={cat} label={cat} value={fmt(amt)} valueColor="#ef4444" />
-            ))
-          }
-          {subsCost > 0 && (
-            <div style={{ fontSize: 11, color: 'var(--muted)', padding: '2px 0 4px', fontStyle: 'italic' }}>
-              * Subscriptions shown as estimated monthly cost
-            </div>
+          {expenses.map((row, i) => {
+            const suggestion = Math.round(txnExpenseByCat[row.cat] || 0)
+            return editing ? (
+              <EditRow key={row.cat} row={row} suggestion={suggestion}
+                onChange={v => setExpenses(rows => rows.map((r, j) => j === i ? { ...r, amount: v } : r))}
+                onAccept={() => acceptSuggestion('expense', row.cat)} />
+            ) : row.amount ? (
+              <Row key={row.cat} label={row.label} value={fmt(parseFloat(row.amount))} valueColor="#ef4444" />
+            ) : null
+          })}
+          {!editing && expenses.filter(r => r.amount).length === 0 && (
+            <EmptyRow label={<span>No expenses entered — <button onClick={handleEdit} style={{ color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontSize:13 }}>click Edit to add</button></span>} />
           )}
           <TotalRow label="Total Expenses" value={fmt(totalExpenses)} color="#ef4444" />
         </Section>
@@ -210,15 +311,13 @@ export default function Statement() {
         <Section title="LIABILITIES" accent="#f59e0b">
           {creditAccounts.length === 0
             ? <EmptyRow label="No liabilities recorded" />
-            : creditAccounts.map(a => (
-              <Row key={a.id} label={a.name} value={fmt(a.balance || 0)} valueColor="#f59e0b" />
-            ))
+            : creditAccounts.map(a => <Row key={a.id} label={a.name} value={fmt(a.balance || 0)} valueColor="#f59e0b" />)
           }
           <TotalRow label="Total Liabilities" value={fmt(totalLiabilities)} color="#f59e0b" />
         </Section>
       </div>
 
-      {/* ── Net Worth & Cash Flow footer ── */}
+      {/* ── Footer ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 16 }}>
         <div className="card" style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Net Worth (Assets − Liabilities)</span>
@@ -243,6 +342,31 @@ export default function Statement() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
+function EditRow({ row, suggestion, onChange, onAccept }) {
+  return (
+    <div style={{ padding: '6px 16px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <span style={{ fontSize: 13, color: 'var(--muted)', flex: 1 }}>{row.label}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {suggestion > 0 && (
+            <button onClick={onAccept} title="Use suggested value from your transactions"
+              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 12, cursor: 'pointer', whiteSpace: 'nowrap',
+                background: 'rgba(6,182,212,.12)', color: '#06b6d4', border: '1px solid rgba(6,182,212,.3)', fontWeight: 600 }}>
+              ✦ {fmt(suggestion)}
+            </button>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>R</span>
+          <input type="number" min="0" step="1" value={row.amount}
+            onChange={e => onChange(e.target.value)}
+            placeholder="0"
+            className="form-input"
+            style={{ width: 100, padding: '4px 8px', fontSize: 13, height: 30, textAlign: 'right' }} />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SummaryTile({ label, value, color, highlight }) {
   return (
     <div className="stat-card" style={highlight ? { border: `1px solid ${color}44`, background: `${color}08` } : {}}>
@@ -255,15 +379,10 @@ function SummaryTile({ label, value, color, highlight }) {
 function Section({ title, accent, children }) {
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <div style={{
-        background: accent, color: '#fff', fontWeight: 800,
-        fontSize: 13, letterSpacing: '.12em', padding: '10px 16px',
-      }}>
+      <div style={{ background: accent, color: '#fff', fontWeight: 800, fontSize: 13, letterSpacing: '.12em', padding: '10px 16px' }}>
         {title}
       </div>
-      <div style={{ padding: '8px 0 4px' }}>
-        {children}
-      </div>
+      <div style={{ padding: '8px 0 4px' }}>{children}</div>
     </div>
   )
 }
@@ -271,9 +390,7 @@ function Section({ title, accent, children }) {
 function SubHeader({ label }) {
   return (
     <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 700, letterSpacing: '.08em',
-      textTransform: 'uppercase', padding: '8px 16px 2px' }}>
-      {label}
-    </div>
+      textTransform: 'uppercase', padding: '8px 16px 2px' }}>{label}</div>
   )
 }
 
@@ -304,8 +421,6 @@ function TotalRow({ label, value, color }) {
 
 function EmptyRow({ label }) {
   return (
-    <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13, fontStyle: 'italic' }}>
-      {label}
-    </div>
+    <div style={{ padding: '12px 16px', color: 'var(--muted)', fontSize: 13, fontStyle: 'italic' }}>{label}</div>
   )
 }
