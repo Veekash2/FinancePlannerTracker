@@ -40,8 +40,10 @@ export default function Statement() {
 
   // Filter to selected month
   const monthTxns = txns.filter(t => {
-    const d = new Date(t.date)
-    return d.getMonth() === month && d.getFullYear() === year
+    // Parse date string directly to avoid UTC→local timezone shift
+    const parts = (t.date || '').split('-')
+    if (parts.length !== 3) return false
+    return parseInt(parts[1], 10) - 1 === month && parseInt(parts[0], 10) === year
   })
 
   // ── INCOME ──────────────────────────────────────────────────────────────

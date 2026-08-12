@@ -291,7 +291,16 @@ Rules:
 - Extract ALL transactions — do not skip any
 - If a date is missing use today: ${today}
 - description should be human-readable, remove bank codes like POS/NB/ATM prefixes where possible but keep the merchant name
-- category: Salary for regular employer payments, Freelance for irregular income, Food for groceries/restaurants, Transport for fuel/Uber/parking, Bills for utilities/insurance/phone, Health for medical/pharmacy, Shopping for retail, Entertainment for leisure, Other for anything else`,
+- category rules (be precise):
+  * Salary — any income credit that looks like a payroll deposit, employer payment, or regular monthly salary (e.g. "SALARY", "PAY", "PAYROLL", "REMUNERATION", employer name transfers, large consistent monthly credits)
+  * Freelance — irregular income, consulting fees, contract payments
+  * Food — groceries, restaurants, takeaways, supermarkets (Woolworths Food, Pick n Pay, Checkers, Spar, Uber Eats, Mr D)
+  * Transport — fuel, Uber, Bolt, parking, tolls, vehicle-related
+  * Bills — utilities, electricity, water, insurance premiums, phone contracts, internet/fibre
+  * Health — medical aid, pharmacy, doctors, hospitals
+  * Shopping — retail, clothing, electronics (Woolworths Fashion, H&M, Zara, Takealot, Amazon)
+  * Entertainment — streaming services counted elsewhere, but movies, restaurants, bars, events
+  * Other — only use if nothing above fits`,
     },
   ]
 
