@@ -63,12 +63,14 @@ export function ImportProvider({ children }) {
         if (cancelledRef.current) break
         set('sending');     await delay(200)
         if (cancelledRef.current) break
-        set('extracting', { extractStart: Date.now(), retryMsg: null })
+        set('extracting', { extractStart: Date.now(), retryMsg: null, aiModel: 'gemini' })
         const result = await parseBankStatementPDF(file, {
           onRetry: (attempt, wait) =>
             setFiles(prev => prev.map((f, idx) => idx === i
-              ? { ...f, retryMsg: attempt === 'claude'
-                    ? '⚡ Gemini overloaded — switching to Claude fallback'
+              ? { ...f,
+                  aiModel: attempt === 'claude' ? 'claude' : 'gemini',
+                  retryMsg: attempt === 'claude'
+                    ? null
                     : `Gemini busy — retrying in ${Math.round(wait / 1000)}s (attempt ${attempt})` }
               : f
             ))

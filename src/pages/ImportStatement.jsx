@@ -362,7 +362,7 @@ function FileCard({ f }) {
             <div style={{ fontWeight:600, fontSize:14, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.name}</div>
             <div style={{ fontSize:12, marginTop:2, color:isDone?'var(--green)':isError?'var(--red)':'var(--muted)' }}>
               {isError ? f.error
-               : isDone ? `${f.txnCount} transaction${f.txnCount!==1?'s':''} extracted`
+               : isDone ? `${f.txnCount} transaction${f.txnCount!==1?'s':''} extracted${f.aiModel==='claude' ? ' via Claude' : ' via Gemini'}`
                : f.status==='waiting' ? 'Waiting…'
                : FILE_STEPS.find(s=>s.key===f.status)?.label ?? 'Processing…'}
               {isExtracting && elapsed > 0 && (
@@ -376,9 +376,22 @@ function FileCard({ f }) {
             )}
           </div>
         </div>
-        {!isDone&&!isError&&f.status!=='waiting'&&(
-          <div style={{ width:18,height:18,border:'2px solid rgba(99,102,241,.2)',borderTopColor:'#6366f1',borderRadius:'50%',animation:'spin .8s linear infinite',flexShrink:0 }} />
-        )}
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+          {!isDone && !isError && f.status !== 'waiting' && f.aiModel && (
+            <span style={{
+              fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+              background: f.aiModel === 'claude' ? 'rgba(245,158,11,.12)' : 'rgba(99,102,241,.12)',
+              color:      f.aiModel === 'claude' ? '#f59e0b' : '#818cf8',
+              border:     f.aiModel === 'claude' ? '1px solid rgba(245,158,11,.3)' : '1px solid rgba(99,102,241,.3)',
+              letterSpacing: '.04em', textTransform: 'uppercase',
+            }}>
+              {f.aiModel === 'claude' ? '⚡ Claude' : '✦ Gemini'}
+            </span>
+          )}
+          {!isDone&&!isError&&f.status!=='waiting'&&(
+            <div style={{ width:18,height:18,border:'2px solid rgba(99,102,241,.2)',borderTopColor:'#6366f1',borderRadius:'50%',animation:'spin .8s linear infinite' }} />
+          )}
+        </div>
       </div>
       <div style={{ height:4, background:'var(--border)', borderRadius:2, overflow:'hidden' }}>
         <div style={{ height:'100%', borderRadius:2, transition:'width .5s ease', width:`${pct}%`,
