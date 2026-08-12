@@ -67,7 +67,9 @@ export function ImportProvider({ children }) {
         const result = await parseBankStatementPDF(file, {
           onRetry: (attempt, wait) =>
             setFiles(prev => prev.map((f, idx) => idx === i
-              ? { ...f, retryMsg: `Gemini busy — retrying in ${Math.round(wait / 1000)}s (attempt ${attempt})` }
+              ? { ...f, retryMsg: attempt === 'claude'
+                    ? '⚡ Gemini overloaded — switching to Claude fallback'
+                    : `Gemini busy — retrying in ${Math.round(wait / 1000)}s (attempt ${attempt})` }
               : f
             ))
         })

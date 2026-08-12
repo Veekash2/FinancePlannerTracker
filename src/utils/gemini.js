@@ -1,4 +1,4 @@
-import { GEMINI_API_KEY, GEMINI_MODEL } from '../config'
+import { GEMINI_API_KEY, GEMINI_MODEL, ANTHROPIC_API_KEY, CLAUDE_FALLBACK_MODEL, CLAUDE_MAX_TOKENS } from '../config'
 
 const BASE = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
@@ -31,8 +31,51 @@ async function generate(parts, { retries = 4, onRetry } = {}) {
       await new Promise(r => setTimeout(r, wait))
       continue
     }
+    if (isOverloaded && ANTHROPIC_API_KEY) {
+      onRetry?.('claude', 0)
+      return callClaude(parts)
+    }
     throw new Error(err.error?.message ?? `Gemini API error ${res.status}`)
   }
+}
+
+// Convert Gemini parts → Claude content blocks
+function toClaudeContent(parts) {
+  return parts.map(p => {
+    if (p.text) return { type: 'text', text: p.text }
+    if (p.inline_data) {
+      const { mime_type, data } = p.inline_data
+      if (mime_type === 'application/pdf') {
+        return { type: 'document', source: { type: 'base64', media_type: mime_type, data } }
+      }
+      return { type: 'image', source: { type: 'base64', media_type: mime_type, data } }
+    }
+    return null
+  }).filter(Boolean)
+}
+
+async function callClaude(parts) {
+  if (!ANTHROPIC_API_KEY) throw new Error('No Anthropic API key configured')
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: CLAUDE_FALLBACK_MODEL,
+      max_tokens: CLAUDE_MAX_TOKENS,
+      messages: [{ role: 'user', content: toClaudeContent(parts) }],
+    }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.error?.message ?? `Claude API error ${res.status}`)
+  }
+  const data = await res.json()
+  return data.content[0].text
 }
 
 function parseJSON(text) {
