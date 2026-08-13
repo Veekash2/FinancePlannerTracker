@@ -1,4 +1,27 @@
 import { GEMINI_API_KEY, GEMINI_MODEL, ANTHROPIC_API_KEY, CLAUDE_FALLBACK_MODEL, CLAUDE_MAX_TOKENS } from '../config'
+import { api } from '../storage'
+
+const DAILY_TOKEN_LIMIT = 1000
+
+// Rough token estimator: ~4 chars per token
+function estimateTokens(text) {
+  return Math.ceil((text?.length ?? 0) / 4)
+}
+
+async function checkAndChargeTokens(inputText, outputText) {
+  const used = estimateTokens(inputText) + estimateTokens(outputText)
+  await api.addDailyTokens(used).catch(() => {}) // don't block on tracking failure
+  return used
+}
+
+export async function checkDailyLimit() {
+  try {
+    const used = await api.getDailyTokensUsed()
+    return { used, limit: DAILY_TOKEN_LIMIT, exceeded: used >= DAILY_TOKEN_LIMIT }
+  } catch {
+    return { used: 0, limit: DAILY_TOKEN_LIMIT, exceeded: false }
+  }
+}
 
 const BASE = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 
@@ -12,6 +35,12 @@ function fileToBase64(file) {
 }
 
 async function generate(parts, { retries = 4, onRetry } = {}) {
+  const { exceeded, used } = await checkDailyLimit()
+  if (exceeded) {
+    console.warn(`[AI] Daily token limit reached (${used}/${DAILY_TOKEN_LIMIT})`)
+    throw new Error(`Daily AI limit reached (${used}/${DAILY_TOKEN_LIMIT} tokens used today). Resets at midnight.`)
+  }
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     const res = await fetch(`${BASE}?key=${GEMINI_API_KEY}`, {
       method: 'POST',
@@ -20,7 +49,10 @@ async function generate(parts, { retries = 4, onRetry } = {}) {
     })
     if (res.ok) {
       const data = await res.json()
-      return data.candidates[0].content.parts[0].text
+      const text = data.candidates[0].content.parts[0].text
+      const inputText = parts.map(p => p.text ?? '').join('')
+      await checkAndChargeTokens(inputText, text)
+      return text
     }
     const err = await res.json().catch(() => ({}))
     const msg = err.error?.message ?? ''
@@ -95,7 +127,10 @@ async function callClaude(parts) {
   }
   const data = await res.json()
   console.info('[AI] Claude response received')
-  return data.content[0].text
+  const text = data.content[0].text
+  const inputText = parts.map(p => p.text ?? '').join('')
+  await checkAndChargeTokens(inputText, text)
+  return text
 }
 
 function parseJSON(text) {

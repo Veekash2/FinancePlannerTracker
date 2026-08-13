@@ -163,4 +163,26 @@ export const api = {
 
     return { income, expenses, balance: income - expenses, monthlySubsCost, spendingByCategory }
   },
+
+  // ── Global daily token budget ──────────────────────────────────────────
+  async getDailyTokensUsed() {
+    const today = new Date().toISOString().slice(0, 10)
+    const { data } = await supabase
+      .from('daily_token_usage')
+      .select('tokens_used')
+      .eq('date', today)
+      .single()
+    return data?.tokens_used ?? 0
+  },
+
+  async addDailyTokens(count) {
+    const today = new Date().toISOString().slice(0, 10)
+    // Upsert: insert if new day, otherwise increment
+    const { error } = await supabase.rpc('increment_daily_tokens', { p_date: today, p_count: count })
+    if (error) {
+      // Fallback: plain upsert (loses race-condition safety but still works for low-traffic)
+      const current = await this.getDailyTokensUsed()
+      await supabase.from('daily_token_usage').upsert({ date: today, tokens_used: current + count })
+    }
+  },
 }

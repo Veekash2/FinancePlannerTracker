@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { useImport } from '../context/ImportContext'
+import { checkDailyLimit } from '../utils/gemini'
 
 const CATEGORIES   = ['Salary','Freelance','Food','Transport','Entertainment','Shopping','Bills','Health','Other']
 const CAT_ICONS    = { Salary:'💼',Freelance:'💻',Food:'🍔',Transport:'🚗',Entertainment:'🎬',Shopping:'🛍️',Bills:'📄',Health:'💊',Other:'📦' }
@@ -28,6 +29,11 @@ export default function ImportStatement({ onImported }) {
   } = useImport()
 
   const fileRef = useRef()
+  const [tokenStatus, setTokenStatus] = useState(null)
+
+  useEffect(() => {
+    checkDailyLimit().then(setTokenStatus)
+  }, [page])
 
   const includedRows = rows.filter(r => r._include)
   const includedSubs = recur.filter(s => s._include)
@@ -87,12 +93,35 @@ export default function ImportStatement({ onImported }) {
           ⚠️ <code>VITE_GEMINI_API_KEY</code> not configured — add it to GitHub Secrets.
         </div>
       )}
+      {tokenStatus && (
+        <div style={{ padding:'10px 16px', marginBottom:14, borderRadius:10, fontSize:13,
+          background: tokenStatus.exceeded ? 'rgba(239,68,68,.07)' : 'rgba(99,102,241,.06)',
+          border: `1px solid ${tokenStatus.exceeded ? 'rgba(239,68,68,.3)' : 'rgba(99,102,241,.2)'}`,
+          color: tokenStatus.exceeded ? '#ef4444' : 'var(--muted)',
+          display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+          <span>
+            {tokenStatus.exceeded
+              ? '🚫 Daily AI limit reached — try again tomorrow.'
+              : `🤖 AI tokens used today: ${tokenStatus.used} / ${tokenStatus.limit}`}
+          </span>
+          {!tokenStatus.exceeded && (
+            <div style={{ width:120, height:6, background:'var(--border)', borderRadius:3, overflow:'hidden', flexShrink:0 }}>
+              <div style={{ height:'100%', borderRadius:3, transition:'width .4s',
+                background: tokenStatus.used / tokenStatus.limit > 0.8 ? '#f59e0b' : '#6366f1',
+                width: `${Math.min(100, (tokenStatus.used / tokenStatus.limit) * 100)}%` }} />
+            </div>
+          )}
+        </div>
+      )}
       <div className="card"
-        style={{ padding:'3rem 2rem', textAlign:'center', cursor:noKey?'not-allowed':'pointer', border:'2px dashed var(--border)', opacity:noKey?.5:1 }}
-        onClick={() => !noKey && fileRef.current?.click()}
-        onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor='#6366f1' }}
+        style={{ padding:'3rem 2rem', textAlign:'center',
+          cursor: (noKey || tokenStatus?.exceeded) ? 'not-allowed' : 'pointer',
+          border:'2px dashed var(--border)',
+          opacity: (noKey || tokenStatus?.exceeded) ? .5 : 1 }}
+        onClick={() => !noKey && !tokenStatus?.exceeded && fileRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); if (!tokenStatus?.exceeded) e.currentTarget.style.borderColor='#6366f1' }}
         onDragLeave={e => { e.currentTarget.style.borderColor='' }}
-        onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor=''; processFiles(e.dataTransfer.files) }}>
+        onDrop={e => { e.preventDefault(); e.currentTarget.style.borderColor=''; if (!tokenStatus?.exceeded) processFiles(e.dataTransfer.files) }}>
         <div style={{ fontSize:52, marginBottom:12 }}>📄</div>
         <p style={{ fontWeight:700, marginBottom:6 }}>Drop PDF bank statements here</p>
         <p style={{ color:'var(--muted)', fontSize:13 }}>or click to browse · multiple PDFs supported</p>
